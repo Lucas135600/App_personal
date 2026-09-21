@@ -1,0 +1,14 @@
+{
+  // Os scripts de linha de comando são verificados à parte, de propósito:
+  // eles não fazem parte da aplicação, e um erro aqui não pode derrubar o
+  // build de produção — foi exatamente o que aconteceu uma vez.
+  //
+  // Rodam pelo Node 24 direto, que exige a extensão .ts nos imports relativos.
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "allowImportingTsExtensions": true,
+    "noEmit": true
+  },
+  "include": ["**/*.ts", "../src/lib/**/*.ts"],
+  "exclude": []
+}

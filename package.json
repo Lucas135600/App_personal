@@ -13,7 +13,8 @@
     "db:push": "node scripts/db-push.mjs",
     "db:test": "node scripts/db-test.mjs",
     "supabase:check": "node scripts/supabase-check.mjs",
-    "criar:personal": "node scripts/criar-personal.ts"
+    "criar:personal": "node scripts/criar-personal.ts",
+    "typecheck": "tsc --noEmit && tsc -p scripts --noEmit"
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.5.8",
