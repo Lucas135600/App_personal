@@ -267,6 +267,29 @@ Um **endereço público em HTTPS**. Service worker e instalação só funcionam 
 `localhost`, para teste). Enquanto a plataforma estiver no seu computador, não há link para
 mandar. Resolver a hospedagem resolve o app no celular junto — é a mesma tarefa.
 
+### Publicando no Supabase
+
+1. No painel do Supabase, **Project Settings → Database → Connection string → URI**. Troque
+   `[YOUR-PASSWORD]` pela senha do banco e use a porta **6543** (o pooler) — em serverless cada
+   função abre conexão própria, e a porta direta esgota o limite.
+2. **Project Settings → API → service_role**. Essa chave dá acesso total ao projeto: só no
+   servidor, nunca no navegador, nunca no git.
+3. **Storage → New bucket**, nome `fotos-evolucao`, **privado**.
+4. Preencha o `.env.local` e confira tudo de uma vez:
+
+```bash
+npm run supabase:check
+```
+
+Ele testa a conexão, conta as tabelas, confirma que o bucket existe e é privado, e faz uma ida e
+volta real de arquivo: grava, lê, tenta abrir sem autenticação (tem que falhar) e apaga.
+
+5. Com o banco acessível, crie as tabelas:
+
+```bash
+npm run db:push
+```
+
 ### Onde ficam as fotos
 
 `storage.ts` decide sozinho: em desenvolvimento grava em `data/uploads`, em produção envia para o

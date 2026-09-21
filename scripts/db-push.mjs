@@ -3,6 +3,9 @@
    O esquema é idempotente (CREATE TABLE IF NOT EXISTS), então repetir não quebra. */
 import fs from "node:fs";
 import pg from "pg";
+import { loadEnv } from "./env.mjs";
+
+loadEnv();
 
 const url = process.env.DATABASE_URL;
 if (!url) {

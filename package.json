@@ -11,7 +11,8 @@
     "seed:reset": "node scripts/reset-db.mjs",
     "icons": "node scripts/gen-icons.mjs",
     "db:push": "node scripts/db-push.mjs",
-    "db:test": "node scripts/db-test.mjs"
+    "db:test": "node scripts/db-test.mjs",
+    "supabase:check": "node scripts/supabase-check.mjs"
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.5.8",
