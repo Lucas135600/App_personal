@@ -299,6 +299,16 @@ volta real de arquivo: grava, lê, tenta abrir sem autenticação (tem que falha
 npm run db:push
 ```
 
+6. Crie a sua conta de personal. O banco de produção nasce **vazio** de propósito — os alunos de
+   demonstração são do desenvolvimento e não devem ir para lá:
+
+```bash
+npm run criar:personal
+```
+
+   A senha é digitada no terminal, não aparece na tela e não vai para arquivo nenhum. Depois é só
+   entrar no app e cadastrar os alunos reais pela interface.
+
 ### Onde ficam as fotos
 
 `storage.ts` decide sozinho: em desenvolvimento grava em `data/uploads`, em produção envia para o
