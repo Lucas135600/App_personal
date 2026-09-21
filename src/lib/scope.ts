@@ -1,6 +1,6 @@
 import { cache } from "react";
 import { cookies } from "next/headers";
-import crypto from "node:crypto";
+import { SESSION_COOKIE, verifySession } from "./session";
 import { findStudentByUserId, findUserById, loadProfessionalData } from "./repo";
 import type { Database } from "./types";
 
@@ -12,23 +12,12 @@ import type { Database } from "./types";
  *    isso mesmo quando a página chama getDb() em cinco lugares diferentes.
  */
 
-const COOKIE = "lb_session";
-const SECRET = process.env.LB_SESSION_SECRET ?? "lb360-dev-secret";
-
-function verify(token: string): string | null {
-  const idx = token.lastIndexOf(".");
-  if (idx < 0) return null;
-  const userId = token.slice(0, idx);
-  const mac = crypto.createHmac("sha256", SECRET).update(userId).digest("hex").slice(0, 32);
-  return `${userId}.${mac}` === token ? userId : null;
-}
-
 /** Profissional dono dos dados desta requisição: o próprio, se for o personal;
  *  o personal do aluno, se for aluno. */
 const currentProfessionalId = cache(async (): Promise<string | null> => {
-  const token = (await cookies()).get(COOKIE)?.value;
+  const token = (await cookies()).get(SESSION_COOKIE)?.value;
   if (!token) return null;
-  const userId = verify(token);
+  const userId = verifySession(token);
   if (!userId) return null;
 
   const user = await findUserById(userId);

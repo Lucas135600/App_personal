@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { saveUpload } from "@/lib/db";
+import { putPhoto } from "@/lib/storage";
 import { requireStudent } from "@/lib/auth";
 import * as repo from "@/lib/repo-write";
 import { currentMonth, currentWeekStart, todayISO } from "@/lib/dates";
@@ -125,7 +125,7 @@ export async function uploadProgressPhotoAction(formData: FormData) {
 
   const ext = file.type === "image/png" ? "png" : file.type === "image/webp" ? "webp" : "jpg";
   const fileName = `${student.id}_${month}_${angle}_${Date.now()}.${ext}`;
-  saveUpload(fileName, Buffer.from(await file.arrayBuffer()));
+  await putPhoto(fileName, Buffer.from(await file.arrayBuffer()), file.type);
 
   await repo.upsertPhoto({
     studentId: student.id,

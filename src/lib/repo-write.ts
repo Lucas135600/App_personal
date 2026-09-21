@@ -99,6 +99,10 @@ export async function updateStudent(
   });
 }
 
+export async function updatePasswordHash(userId: string, hash: string) {
+  await sql("UPDATE users SET password_hash = $2 WHERE id = $1", [userId, hash]);
+}
+
 export async function updateAccount(userId: string, name: string, email: string, passwordHash?: string) {
   await sql(
     `UPDATE users SET name = $2, email = $3,

@@ -1,40 +1,31 @@
-import crypto from "node:crypto";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { cache } from "react";
-import { hashPassword } from "./db";
+import { hashPassword, verifyPassword } from "./password";
+import { SESSION_COOKIE, signSession, verifySession } from "./session";
 import { findStudentById, findStudentByUserId, findUserByEmail, findUserById } from "./repo";
+import { updatePasswordHash } from "./repo-write";
 import type { Student, User } from "./types";
-
-const COOKIE = "lb_session";
-const SECRET = process.env.LB_SESSION_SECRET ?? "lb360-dev-secret";
-
-function sign(userId: string) {
-  const mac = crypto.createHmac("sha256", SECRET).update(userId).digest("hex").slice(0, 32);
-  return `${userId}.${mac}`;
-}
-
-function verify(token: string): string | null {
-  const idx = token.lastIndexOf(".");
-  if (idx < 0) return null;
-  const userId = token.slice(0, idx);
-  return sign(userId) === token ? userId : null;
-}
 
 export async function authenticate(email: string, password: string): Promise<User | null> {
   const user = await findUserByEmail(email);
   if (!user) return null;
-  // comparação em tempo constante: evita distinguir senha errada por tempo de resposta
-  const esperado = Buffer.from(user.passwordHash);
-  const recebido = Buffer.from(hashPassword(password));
-  if (esperado.length !== recebido.length) return null;
-  if (!crypto.timingSafeEqual(esperado, recebido)) return null;
+
+  const { ok, precisaAtualizar } = verifyPassword(password, user.passwordHash);
+  if (!ok) return null;
+
+  // senha no formato antigo: regrava em scrypt agora que temos o texto puro
+  if (precisaAtualizar) {
+    const novo = hashPassword(password);
+    await updatePasswordHash(user.id, novo);
+    return { ...user, passwordHash: novo };
+  }
   return user;
 }
 
 export async function startSession(userId: string) {
   const jar = await cookies();
-  jar.set(COOKIE, sign(userId), {
+  jar.set(SESSION_COOKIE, signSession(userId), {
     httpOnly: true,
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
@@ -45,13 +36,13 @@ export async function startSession(userId: string) {
 
 export async function endSession() {
   const jar = await cookies();
-  jar.delete(COOKIE);
+  jar.delete(SESSION_COOKIE);
 }
 
 export const currentUser = cache(async (): Promise<User | null> => {
-  const token = (await cookies()).get(COOKIE)?.value;
+  const token = (await cookies()).get(SESSION_COOKIE)?.value;
   if (!token) return null;
-  const userId = verify(token);
+  const userId = verifySession(token);
   if (!userId) return null;
   return findUserById(userId);
 });

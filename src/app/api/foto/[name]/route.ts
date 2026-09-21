@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import path from "node:path";
 import { currentUser } from "@/lib/auth";
-import { readUpload } from "@/lib/db";
+import { readPhoto } from "@/lib/storage";
 import { sqlOne } from "@/lib/sql";
 
 const TYPES: Record<string, string> = {
@@ -33,7 +33,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ name: string }
     (user.role === "personal" && dono.professional_id === user.id);
   if (!allowed) return new NextResponse("Acesso negado", { status: 403 });
 
-  const buffer = readUpload(safe);
+  const buffer = await readPhoto(safe);
   if (!buffer) return new NextResponse("Não encontrado", { status: 404 });
 
   return new NextResponse(new Uint8Array(buffer), {

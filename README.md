@@ -25,6 +25,14 @@ demonstração no primeiro acesso. As fotos ficam em `data/uploads/`.
 
 O mesmo SQL roda no Supabase em produção — o que passa aqui passa lá.
 
+Para rodar a build de produção localmente (`npm run build && npm start`), crie um `.env.local`:
+
+```bash
+node -e "console.log('LB_SESSION_SECRET='+require('crypto').randomBytes(32).toString('hex'))" > .env.local
+```
+
+O app **se recusa a subir em produção sem essa chave** — veja a seção de segurança.
+
 Para testar no celular, use o IP da máquina na mesma rede — o dev server já escuta em `0.0.0.0`:
 
 ```bash
@@ -148,6 +156,22 @@ tocam mais de uma tabela vão em transação. É a diferença que mais importa e
 JSON anterior: lá toda escrita regravava o arquivo inteiro, e dois alunos salvando ao mesmo
 tempo perdiam uma das gravações.
 
+### Segurança
+
+**Segredo de sessão obrigatório.** O cookie é assinado com `LB_SESSION_SECRET`. Existe um valor
+de desenvolvimento, mas ele é público neste repositório: quem o lê forja o cookie de qualquer
+usuário, inclusive o do personal. Por isso, em produção, a aplicação falha na inicialização se a
+chave não estiver definida — alto e cedo, em vez de silenciosamente insegura.
+
+**Senhas em scrypt.** O projeto usava SHA-256 sem sal, que uma GPU testa aos bilhões por segundo.
+Agora cada verificação custa ~63 ms e exige memória, o que inviabiliza força bruta em escala.
+Senhas no formato antigo **continuam entrando e são regravadas em scrypt no primeiro login**, sem
+ninguém precisar redefinir nada.
+
+**Fotos nunca saem por URL pública.** O bucket é privado e não usamos link assinado — link vaza se
+for copiado, e isto é dado de saúde. Quem decide se a imagem pode ser vista é a rota `/api/foto`,
+validando a sessão a cada requisição.
+
 ### Verificando o banco
 
 ```bash
@@ -242,6 +266,12 @@ ativo, e o menu do navegador deve oferecer "Instalar aplicativo".
 Um **endereço público em HTTPS**. Service worker e instalação só funcionam em HTTPS (ou em
 `localhost`, para teste). Enquanto a plataforma estiver no seu computador, não há link para
 mandar. Resolver a hospedagem resolve o app no celular junto — é a mesma tarefa.
+
+### Onde ficam as fotos
+
+`storage.ts` decide sozinho: em desenvolvimento grava em `data/uploads`, em produção envia para o
+Supabase Storage. Disco de servidor serverless é efêmero e somente leitura, então em produção o
+arquivo não pode ficar no servidor.
 
 ### E o APK / a App Store?
 

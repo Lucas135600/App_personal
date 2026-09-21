@@ -7,9 +7,7 @@ import type {
 import { addDays, currentWeekStart, formatDate, todayISO } from "./dates";
 import { seedProgressPhotos, type PhotoSeedInput } from "./seed-photos";
 
-function hash(password: string) {
-  return crypto.createHash("sha256").update(`lb360::${password}`).digest("hex");
-}
+import { hashPassword as hash } from "./password";
 
 /** Gerador determinístico: o seed precisa ser reproduzível entre reinstalações. */
 function makeRandom(seedValue: number) {
