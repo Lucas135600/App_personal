@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>LB Personal Trainner — opções de logo</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --ink-950:#08090a; --ink-900:#0d0f11; --ink-850:#121417; --ink-800:#17191d;
+    --ink-700:#22252a; --ink-500:#484d55; --ink-400:#6c727c; --ink-300:#9aa1ac; --ink-100:#e8eaee;
+    --lime:#c8f542;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin:0; background:var(--ink-950); color:var(--ink-100);
+    font-family:Inter, ui-sans-serif, system-ui, sans-serif;
+    padding:32px 20px 64px;
+  }
+  .wrap { max-width: 1040px; margin:0 auto; }
+  h1 { font-size:1.6rem; letter-spacing:-.02em; margin:0 0 6px; }
+  .sub { color:var(--ink-400); font-size:.875rem; margin:0 0 28px; }
+  .concept {
+    border:1px solid var(--ink-800); background:var(--ink-900);
+    border-radius:18px; padding:20px; margin-bottom:16px;
+  }
+  .chead { display:flex; align-items:baseline; gap:10px; flex-wrap:wrap; margin-bottom:4px; }
+  .num {
+    font-size:11px; font-weight:800; letter-spacing:.14em; text-transform:uppercase;
+    color:var(--ink-950); background:var(--lime); border-radius:999px; padding:3px 9px;
+  }
+  .cname { font-size:1.05rem; font-weight:700; }
+  .tag { font-size:10px; font-weight:800; letter-spacing:.1em; text-transform:uppercase;
+         border-radius:999px; padding:3px 9px; }
+  .tag.ok { background:rgba(74,222,128,.15); color:#4ade80; }
+  .tag.nao { background:rgba(248,113,113,.15); color:#f87171; }
+  .cdesc { color:var(--ink-400); font-size:.8125rem; margin:0 0 18px; line-height:1.5; }
+  .row { display:flex; gap:14px; flex-wrap:wrap; align-items:flex-end; }
+  .cell {
+    border:1px solid var(--ink-800); background:var(--ink-850);
+    border-radius:14px; padding:14px; display:flex; flex-direction:column;
+    align-items:center; gap:10px; min-width:110px;
+  }
+  .cap { font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-500); }
+  .mark-lime { color:var(--lime); }
+  .mark-white { color:var(--ink-100); }
+  .appicon {
+    background:var(--lime); border-radius:23%; display:flex;
+    align-items:center; justify-content:center; color:var(--ink-950);
+  }
+  .lockup { display:flex; align-items:center; gap:11px; }
+  .word { line-height:1; }
+  .word b { display:block; font-size:1.05rem; font-weight:800; letter-spacing:-.01em; }
+  .word span {
+    display:block; margin-top:4px; font-size:9px; font-weight:700;
+    letter-spacing:.3em; text-transform:uppercase; color:var(--lime);
+  }
+  .navbar {
+    display:flex; gap:0; border-top:1px solid var(--ink-800);
+    background:var(--ink-900); border-radius:0 0 12px 12px; width:250px;
+  }
+  .navbar div {
+    flex:1; display:flex; flex-direction:column; align-items:center; gap:4px;
+    padding:8px 0; font-size:8px; font-weight:700; color:var(--ink-500);
+  }
+  .navbar div.on { color:var(--lime); }
+  .note { font-size:.75rem; color:var(--ink-500); margin-top:14px; line-height:1.6; }
+  .legend { font-size:.75rem; color:var(--ink-400); margin:0 0 22px; line-height:1.6;
+            border-left:2px solid var(--lime); padding-left:12px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Opções de logo — LB Personal Trainner</h1>
+  <p class="sub">Cada opção aparece nos tamanhos em que ela realmente vai ser usada.</p>
+  <p class="legend">
+    Olhe principalmente para as colunas <b>ÍCONE 28</b> e <b>MENU DO APP</b>. É onde as marcas
+    detalhadas quebram — se a forma não sobrevive ali, ela não serve, por mais bonita que fique grande.
+  </p>
+  <div id="out"></div>
+</div>
+
+<script>
+/* ---------- as marcas, em SVG, todas no mesmo viewBox 0 0 160 120 ---------- */
+
+// 1. Braços + halter — o conceito da referência, com execução própria e encorpada
+/* Braço esquerdo como contorno único: punho em cima, antebraço descendo pela
+   esquerda, cotovelo embaixo, braço na horizontal e o bíceps estufando no topo. */
+const BRACO_ESQ = "M14,16 L31,16 L31,34 C30,42 29,46 29,50 C33,42 40,36 48,42 C55,48 58,57 58,64 L58,86 L20,86 C11,86 7,80 7,70 L8,22 C8,17 10,16 14,16 Z";
+
+const bracosHalter = `
+  <g fill="currentColor">
+    <path d="${BRACO_ESQ}"/>
+    <g transform="translate(160,0) scale(-1,1)"><path d="${BRACO_ESQ}"/></g>
+    <!-- halter ao centro, entre os dois bíceps -->
+    <rect x="70" y="54" width="20" height="12" rx="6"/>
+    <rect x="62" y="42" width="11" height="36" rx="5"/>
+    <rect x="87" y="42" width="11" height="36" rx="5"/>
+  </g>`;
+
+// 2. Halter + arco de evolução — legibilidade máxima, fala de progresso
+const halterEvolucao = `
+  <g fill="none" stroke="currentColor" stroke-width="11" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M42 84 L66 60 L86 76 L120 40"/>
+    <path d="M120 40 L120 58 M120 40 L102 40"/>
+  </g>
+  <g fill="currentColor">
+    <rect x="58" y="96" width="44" height="11" rx="5"/>
+    <rect x="46" y="86" width="12" height="31" rx="5"/>
+    <rect x="102" y="86" width="12" height="31" rx="5"/>
+    <rect x="34" y="93" width="9" height="17" rx="4"/>
+    <rect x="117" y="93" width="9" height="17" rx="4"/>
+  </g>`;
+
+// 3. Braço único em arco — o mais minimalista, sobrevive a qualquer tamanho
+const bracoArco = `
+  <g fill="none" stroke="currentColor" stroke-width="17" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M32 104 C 22 62, 44 30, 80 30 C 116 30, 138 62, 128 104"/>
+  </g>
+  <g fill="currentColor">
+    <rect x="66" y="58" width="28" height="12" rx="6"/>
+    <rect x="56" y="45" width="12" height="38" rx="5"/>
+    <rect x="92" y="45" width="12" height="38" rx="5"/>
+  </g>`;
+
+// 4. LB dentro do halter — mantém a inicial e ganha o símbolo
+const lbHalter = `
+  <g fill="currentColor">
+    <rect x="12" y="44" width="13" height="32" rx="6"/>
+    <rect x="29" y="34" width="15" height="52" rx="7"/>
+    <rect x="135" y="44" width="13" height="32" rx="6"/>
+    <rect x="116" y="34" width="15" height="52" rx="7"/>
+    <rect x="44" y="53" width="72" height="14" rx="7"/>
+  </g>
+  <g fill="none" stroke="currentColor" stroke-width="10" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M62 22 L62 46"/>
+    <path d="M62 74 L62 98 L80 98"/>
+    <path d="M92 98 L92 74 M92 46 L92 22 L104 22 C 111 22, 111 34, 104 34 L 92 34"/>
+  </g>`;
+
+// atual, para comparação
+const atual = `
+  <g fill="none" stroke="currentColor" stroke-width="13" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M38 24 L38 92 L74 92"/>
+    <path d="M92 24 h16 a16 16 0 0 1 0 32 h-16 m0 0 h19 a17 17 0 0 1 0 34 h-19 V24Z"/>
+  </g>`;
+
+const CONCEITOS = [
+  { n:"Opção 2", nome:"Halter + arco de evolução", veredito:"ok",
+    desc:"<b>A que funciona melhor.</b> Troca o músculo pela ideia central do seu produto: progresso medido. Sobrevive ao favicon, ao menu do app e ao ícone da tela inicial sem perder a leitura.",
+    svg:halterEvolucao },
+  { n:"Opção 3", nome:"Arco de força", veredito:"ok",
+    desc:"Os dois braços reduzidos a um arco único, com o halter no vazio central. Funciona bem e é a mais sóbria — mas é abstrata: quem vê não pensa em braço, pensa em escudo.",
+    svg:bracoArco },
+  { n:"Opção 1", nome:"Braços + halter", veredito:"nao",
+    desc:"<b>Não funcionou.</b> É a mais próxima da sua referência, e foi a que falhou: sem uma ferramenta de desenho vetorial, as curvas do bíceps viraram formas abstratas. Lê como colchetes, não como braços. Mostro assim mesmo para você ver o problema, não para aprovar.",
+    svg:bracosHalter },
+  { n:"Opção 4", nome:"LB no halter", veredito:"nao",
+    desc:"<b>Não funcionou.</b> A barra corta as letras ao meio e o LB deixa de ser legível. Em tamanho pequeno vira um borrão.",
+    svg:lbHalter },
+  { n:"Atual", nome:"Monograma LB", veredito:"",
+    desc:"O que está no app hoje, para comparação.",
+    svg:atual },
+];
+
+function svg(inner, size, cls) {
+  return `<svg viewBox="0 0 160 120" width="${size}" height="${size * 0.75}" class="${cls||''}" aria-hidden="true">${inner}</svg>`;
+}
+
+document.getElementById("out").innerHTML = CONCEITOS.map(c => `
+  <section class="concept">
+    <div class="chead"><span class="num">${c.n}</span><span class="cname">${c.nome}</span>${c.veredito === "ok" ? '<span class="tag ok">funciona</span>' : c.veredito === "nao" ? '<span class="tag nao">descartada</span>' : ''}</div>
+    <p class="cdesc">${c.desc}</p>
+    <div class="row">
+      <div class="cell">
+        ${svg(c.svg, 130, "mark-lime")}
+        <span class="cap">marca — lima</span>
+      </div>
+      <div class="cell">
+        ${svg(c.svg, 130, "mark-white")}
+        <span class="cap">marca — 1 cor</span>
+      </div>
+      <div class="cell">
+        <div class="appicon" style="width:92px;height:92px">${svg(c.svg, 68)}</div>
+        <span class="cap">ícone do app</span>
+      </div>
+      <div class="cell">
+        <div class="appicon" style="width:28px;height:28px">${svg(c.svg, 21)}</div>
+        <span class="cap">ícone 28</span>
+      </div>
+      <div class="cell" style="min-width:210px">
+        <div class="lockup">
+          <div class="appicon" style="width:40px;height:40px">${svg(c.svg, 30)}</div>
+          <div class="word"><b>LB PERSONAL</b><span>Trainner</span></div>
+        </div>
+        <span class="cap">assinatura no topo</span>
+      </div>
+      <div class="cell" style="padding:0;overflow:hidden">
+        <div class="navbar">
+          <div><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.8V21h14V9.8"/></svg>Início</div>
+          <div class="on">${svg(c.svg, 24, "")}Treinos</div>
+          <div><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="4" width="16" height="16" rx="4"/><path d="m8.5 12 2.5 2.5L16 9.5"/></svg>Check</div>
+          <div><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 20V4"/><path d="M4 16.5 9.5 11l4 3.5L20 7"/></svg>Evolução</div>
+        </div>
+        <span class="cap" style="padding:0 0 12px">menu do app</span>
+      </div>
+    </div>
+  </section>
+`).join("");
+</script>
+</body>
+</html>
