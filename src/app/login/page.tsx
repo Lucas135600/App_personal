@@ -19,21 +19,27 @@ export default async function LoginPage() {
 
         <LoginForm />
 
-        <div className="mt-8 rounded-[18px] border border-ink-800 bg-ink-900 p-4">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-400">
-            Acessos de demonstração
-          </p>
-          <dl className="mt-3 space-y-2 text-xs text-ink-300">
-            <div className="flex items-center justify-between gap-3">
-              <dt className="text-ink-400">Personal</dt>
-              <dd className="font-mono text-ink-200">lucas@lbpersonal.com / lb123456</dd>
-            </div>
-            <div className="flex items-center justify-between gap-3">
-              <dt className="text-ink-400">Aluno</dt>
-              <dd className="font-mono text-ink-200">joao@aluno.com / aluno123</dd>
-            </div>
-          </dl>
-        </div>
+        {/* Credenciais de demonstração só em desenvolvimento.
+            Em produção isto seria um convite a tentar a sorte na tela de
+            entrada de uma plataforma com dado de saúde de terceiros. */}
+        {process.env.NODE_ENV !== "production" && (
+          <div className="mt-8 rounded-[18px] border border-ink-800 bg-ink-900 p-4">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-400">
+              Acessos de demonstração
+            </p>
+            <dl className="mt-3 space-y-2 text-xs text-ink-300">
+              <div className="flex items-center justify-between gap-3">
+                <dt className="text-ink-400">Personal</dt>
+                <dd className="font-mono text-ink-200">lucas@lbpersonal.com / lb123456</dd>
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <dt className="text-ink-400">Aluno</dt>
+                <dd className="font-mono text-ink-200">joao@aluno.com / aluno123</dd>
+              </div>
+            </dl>
+          </div>
+        )}
+
       </div>
     </main>
   );
