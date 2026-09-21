@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { requireStudent } from "@/lib/auth";
-import { getDb } from "@/lib/db";
+import { getDb } from "@/lib/scope";
 import { buildStudentView, nextWorkoutFor, resolveWorkout } from "@/lib/queries";
 import { currentMonth, formatMonth, relativeDays, todayISO } from "@/lib/dates";
 import { Badge, Card, LinkButton, Progress, SectionTitle, toneForScore } from "@/components/ui";
@@ -8,10 +8,10 @@ import { Logo } from "@/components/logo";
 
 export default async function StudentHome() {
   const { user, student } = await requireStudent();
-  const view = buildStudentView(student.id)!;
-  const db = getDb();
-  const workout = nextWorkoutFor(student.id);
-  const resolved = workout ? resolveWorkout(workout.id, student.id) : null;
+  const view = (await buildStudentView(student.id))!;
+  const db = await getDb();
+  const workout = await nextWorkoutFor(student.id);
+  const resolved = workout ? await resolveWorkout(workout.id, student.id) : null;
 
   const checkinPending = view.currentCheckin?.status !== "respondido";
   const photoPending = !view.hasPhotoThisMonth;

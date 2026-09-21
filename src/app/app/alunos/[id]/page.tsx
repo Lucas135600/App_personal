@@ -33,7 +33,7 @@ export default async function StudentPage({
   const { tab = "visao-geral", mes } = await searchParams;
   const month = /^\d{4}-\d{2}$/.test(mes ?? "") ? mes! : currentMonth();
 
-  const view = buildStudentView(id);
+  const view = await buildStudentView(id);
   if (!view || view.student.professionalId !== pro.id) notFound();
 
   return (

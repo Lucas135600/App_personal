@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { requireStudent } from "@/lib/auth";
-import { getDb } from "@/lib/db";
+import { getDb } from "@/lib/scope";
 import { buildStudentView } from "@/lib/queries";
 import { logoutAction } from "@/lib/actions/auth";
 import { formatDate, WEEKDAY_LABELS } from "@/lib/dates";
@@ -9,8 +9,8 @@ import { MODALITY_LABEL } from "@/lib/labels";
 
 export default async function StudentProfilePage() {
   const { user, student } = await requireStudent();
-  const view = buildStudentView(student.id)!;
-  const db = getDb();
+  const view = (await buildStudentView(student.id))!;
+  const db = await getDb();
   const coach = db.users.find((u) => u.id === student.professionalId);
   const anamnesis = db.anamnesis.find((a) => a.studentId === student.id);
   const notifications = db.notifications

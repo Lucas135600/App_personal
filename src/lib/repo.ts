@@ -1,0 +1,264 @@
+import { sql, sqlOne } from "./sql";
+import type {
+  Anamnesis, Assessment, Attendance, Checkin, Database, Exercise, HabitLog,
+  Notification, ProgressPhoto, Student, TrainingPlan, User, Workout,
+  WorkoutExercise, WorkoutSession, WorkoutSet,
+} from "./types";
+
+/* Tradução entre o banco (snake_case, tipos do Postgres) e o domínio
+ * (camelCase, o mesmo formato que as telas já usam desde o começo).
+ *
+ * Manter o formato de domínio intacto foi decisão de projeto: a migração troca
+ * de onde os dados vêm, não como as telas os leem. */
+
+type R = Record<string, unknown>;
+
+const s = (v: unknown) => (v == null ? "" : String(v));
+const n = (v: unknown) => (v == null ? null : Number(v));
+const num = (v: unknown) => Number(v ?? 0);
+const b = (v: unknown) => v === true;
+
+/** DATE volta como Date do driver; o domínio usa "YYYY-MM-DD". */
+function date(v: unknown): string {
+  if (v == null) return "";
+  if (v instanceof Date) {
+    const y = v.getFullYear();
+    const m = String(v.getMonth() + 1).padStart(2, "0");
+    const d = String(v.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
+  }
+  return String(v).slice(0, 10);
+}
+
+function dateOrNull(v: unknown): string | null {
+  const out = date(v);
+  return out === "" ? null : out;
+}
+
+function stamp(v: unknown): string {
+  if (v == null) return "";
+  return v instanceof Date ? v.toISOString() : String(v);
+}
+
+function intArray(v: unknown): number[] {
+  if (Array.isArray(v)) return v.map(Number);
+  // PGlite pode devolver "{1,3,5}"
+  if (typeof v === "string" && v.startsWith("{")) {
+    return v.slice(1, -1).split(",").filter(Boolean).map(Number);
+  }
+  return [];
+}
+
+function jsonOf<T>(v: unknown, fallback: T): T {
+  if (v == null) return fallback;
+  if (typeof v === "string") {
+    try {
+      return JSON.parse(v) as T;
+    } catch {
+      return fallback;
+    }
+  }
+  return v as T;
+}
+
+/* ------------------------------------------------------------- mapeadores */
+
+const toUser = (r: R): User => ({
+  id: s(r.id), email: s(r.email), passwordHash: s(r.password_hash), name: s(r.name),
+  role: s(r.role) as User["role"], professionalId: r.professional_id ? s(r.professional_id) : null,
+  avatarColor: s(r.avatar_color), createdAt: date(r.created_at),
+});
+
+const toStudent = (r: R): Student => ({
+  id: s(r.id), userId: s(r.user_id), professionalId: s(r.professional_id),
+  birthDate: date(r.birth_date), phone: s(r.phone),
+  modality: s(r.modality) as Student["modality"], goal: s(r.goal),
+  status: s(r.status) as Student["status"], startDate: date(r.start_date),
+  trainingDays: intArray(r.training_days), notes: s(r.notes),
+});
+
+const toExercise = (r: R): Exercise => ({
+  id: s(r.id), professionalId: r.professional_id ? s(r.professional_id) : null,
+  name: s(r.name), muscleGroup: s(r.muscle_group), equipment: s(r.equipment),
+  videoUrl: s(r.video_url), instructions: s(r.instructions),
+  commonMistakes: s(r.common_mistakes), tips: s(r.tips),
+});
+
+const toPlan = (r: R): TrainingPlan => ({
+  id: s(r.id), studentId: s(r.student_id), professionalId: s(r.professional_id),
+  name: s(r.name), goal: s(r.goal), startDate: date(r.start_date),
+  endDate: date(r.end_date), active: b(r.active),
+});
+
+const toWorkout = (r: R): Workout => ({
+  id: s(r.id), planId: s(r.plan_id), label: s(r.label), name: s(r.name),
+  weekdays: intArray(r.weekdays), orderIndex: num(r.order_index),
+  estimatedMinutes: num(r.estimated_minutes),
+});
+
+const toWorkoutExercise = (r: R): WorkoutExercise => ({
+  id: s(r.id), workoutId: s(r.workout_id), exerciseId: s(r.exercise_id),
+  orderIndex: num(r.order_index), sets: num(r.sets), repsMin: num(r.reps_min),
+  repsMax: num(r.reps_max), load: num(r.load), restSeconds: num(r.rest_seconds),
+  rir: num(r.rir), cadence: s(r.cadence), method: s(r.method), notes: s(r.notes),
+});
+
+const toSession = (r: R): WorkoutSession => ({
+  id: s(r.id), studentId: s(r.student_id), workoutId: s(r.workout_id),
+  startedAt: stamp(r.started_at), finishedAt: r.finished_at ? stamp(r.finished_at) : null,
+  rpe: n(r.rpe), notes: s(r.notes),
+});
+
+const toSet = (r: R): WorkoutSet => ({
+  id: s(r.id), sessionId: s(r.session_id), workoutExerciseId: s(r.workout_exercise_id),
+  setNumber: num(r.set_number), load: num(r.load), reps: num(r.reps),
+  rpe: n(r.rpe), doneAt: stamp(r.done_at),
+});
+
+const toCheckin = (r: R): Checkin => ({
+  id: s(r.id), studentId: s(r.student_id), professionalId: s(r.professional_id),
+  weekStart: date(r.week_start), status: s(r.status) as Checkin["status"],
+  answeredAt: dateOrNull(r.answered_at),
+  answers: r.answers ? jsonOf(r.answers, null as Checkin["answers"]) : null,
+  coachReply: s(r.coach_reply),
+});
+
+const toAssessment = (r: R): Assessment => ({
+  id: s(r.id), studentId: s(r.student_id), professionalId: s(r.professional_id),
+  date: date(r.date), weight: n(r.weight), height: n(r.height),
+  bodyFat: n(r.body_fat), muscleMass: n(r.muscle_mass),
+  measurements: jsonOf(r.measurements, {
+    cintura: null, abdomen: null, quadril: null, bracoD: null, coxaD: null, peitoral: null,
+  }),
+  notes: s(r.notes),
+});
+
+const toPhoto = (r: R): ProgressPhoto => ({
+  id: s(r.id), studentId: s(r.student_id), month: s(r.month),
+  angle: s(r.angle) as ProgressPhoto["angle"], fileName: s(r.file_name),
+  createdAt: stamp(r.created_at),
+});
+
+const toHabit = (r: R): HabitLog => ({
+  id: s(r.id), studentId: s(r.student_id), date: date(r.date),
+  water: b(r.water), nutrition: b(r.nutrition), sleep: b(r.sleep),
+  steps: b(r.steps), supplement: b(r.supplement), notes: s(r.notes),
+});
+
+const toAttendance = (r: R): Attendance => ({
+  id: s(r.id), studentId: s(r.student_id), professionalId: s(r.professional_id),
+  date: date(r.date), present: b(r.present), notes: s(r.notes),
+});
+
+const toAnamnesis = (r: R): Anamnesis => ({
+  id: s(r.id), studentId: s(r.student_id), professionalId: s(r.professional_id),
+  answeredAt: dateOrNull(r.answered_at), answers: jsonOf(r.answers, {}),
+});
+
+const toNotification = (r: R): Notification => ({
+  id: s(r.id), userId: s(r.user_id), title: s(r.title), body: s(r.body),
+  link: s(r.link), read: b(r.read), createdAt: date(r.created_at),
+});
+
+/* ------------------------------------------------------ autenticação (avulsa) */
+
+export async function findUserByEmail(email: string): Promise<User | null> {
+  const r = await sqlOne("SELECT * FROM users WHERE lower(email) = lower($1)", [email.trim()]);
+  return r ? toUser(r) : null;
+}
+
+export async function findUserById(id: string): Promise<User | null> {
+  const r = await sqlOne("SELECT * FROM users WHERE id = $1", [id]);
+  return r ? toUser(r) : null;
+}
+
+export async function findStudentByUserId(userId: string): Promise<Student | null> {
+  const r = await sqlOne("SELECT * FROM students WHERE user_id = $1", [userId]);
+  return r ? toStudent(r) : null;
+}
+
+export async function findStudentById(id: string): Promise<Student | null> {
+  const r = await sqlOne("SELECT * FROM students WHERE id = $1", [id]);
+  return r ? toStudent(r) : null;
+}
+
+/* ------------------------------------------------------------------ snapshot */
+
+/**
+ * Carrega tudo que pertence a um profissional, no formato de domínio.
+ *
+ * É um punhado de consultas fixo, independente da quantidade de alunos —
+ * buscar aluno por aluno daria dezenas de idas ao banco por tela, e em
+ * serverless cada ida custa latência de rede.
+ *
+ * O escopo é o próprio isolamento multi-tenant: um profissional nunca
+ * carrega linha de outro.
+ */
+export async function loadProfessionalData(professionalId: string): Promise<Database> {
+  const P = [professionalId];
+
+  const [
+    users, students, exercises, plans, workouts, workoutExercises,
+    sessions, sets, checkins, assessments, photos, habits, attendance,
+    anamnesis, notifications,
+  ] = await Promise.all([
+    sql("SELECT * FROM users WHERE id = $1 OR professional_id = $1", P),
+    sql("SELECT * FROM students WHERE professional_id = $1", P),
+    sql("SELECT * FROM exercises WHERE professional_id IS NULL OR professional_id = $1", P),
+    sql("SELECT * FROM training_plans WHERE professional_id = $1", P),
+    sql(`SELECT w.* FROM workouts w
+           JOIN training_plans p ON p.id = w.plan_id
+          WHERE p.professional_id = $1`, P),
+    sql(`SELECT we.* FROM workout_exercises we
+           JOIN workouts w ON w.id = we.workout_id
+           JOIN training_plans p ON p.id = w.plan_id
+          WHERE p.professional_id = $1`, P),
+    sql(`SELECT ws.* FROM workout_sessions ws
+           JOIN students st ON st.id = ws.student_id
+          WHERE st.professional_id = $1`, P),
+    sql(`SELECT wset.* FROM workout_sets wset
+           JOIN workout_sessions ws ON ws.id = wset.session_id
+           JOIN students st ON st.id = ws.student_id
+          WHERE st.professional_id = $1`, P),
+    sql("SELECT * FROM checkins WHERE professional_id = $1", P),
+    sql("SELECT * FROM assessments WHERE professional_id = $1", P),
+    sql(`SELECT ph.* FROM progress_photos ph
+           JOIN students st ON st.id = ph.student_id
+          WHERE st.professional_id = $1`, P),
+    sql(`SELECT h.* FROM habit_logs h
+           JOIN students st ON st.id = h.student_id
+          WHERE st.professional_id = $1`, P),
+    sql("SELECT * FROM attendance WHERE professional_id = $1", P),
+    sql("SELECT * FROM anamnesis WHERE professional_id = $1", P),
+    sql(`SELECT nt.* FROM notifications nt
+           JOIN users u ON u.id = nt.user_id
+          WHERE u.id = $1 OR u.professional_id = $1`, P),
+  ]);
+
+  return {
+    version: 2,
+    users: users.map(toUser),
+    students: students.map(toStudent),
+    exercises: exercises.map(toExercise),
+    trainingPlans: plans.map(toPlan),
+    workouts: workouts.map(toWorkout),
+    workoutExercises: workoutExercises.map(toWorkoutExercise),
+    workoutSessions: sessions.map(toSession),
+    workoutSets: sets.map(toSet),
+    checkins: checkins.map(toCheckin),
+    assessments: assessments.map(toAssessment),
+    progressPhotos: photos.map(toPhoto),
+    habitLogs: habits.map(toHabit),
+    attendance: attendance.map(toAttendance),
+    anamnesis: anamnesis.map(toAnamnesis),
+    notifications: notifications.map(toNotification),
+  };
+}
+
+/** Dono de um aluno, para escopar o snapshot a partir da sessão do próprio aluno. */
+export async function professionalOf(studentId: string): Promise<string | null> {
+  const r = await sqlOne<{ professional_id: string }>(
+    "SELECT professional_id FROM students WHERE id = $1", [studentId],
+  );
+  return r?.professional_id ?? null;
+}

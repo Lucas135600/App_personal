@@ -1,5 +1,5 @@
 import { requireStudent } from "@/lib/auth";
-import { getDb } from "@/lib/db";
+import { getDb } from "@/lib/scope";
 import { buildStudentView } from "@/lib/queries";
 import { todayISO } from "@/lib/dates";
 import { Card, LinkButton, Stat } from "@/components/ui";
@@ -7,8 +7,8 @@ import { Card, LinkButton, Stat } from "@/components/ui";
 export default async function WorkoutDonePage({ params }: { params: Promise<{ id: string }> }) {
   const { student } = await requireStudent();
   const { id } = await params;
-  const db = getDb();
-  const view = buildStudentView(student.id)!;
+  const db = await getDb();
+  const view = (await buildStudentView(student.id))!;
 
   const session = db.workoutSessions
     .filter((s) => s.studentId === student.id && s.workoutId === id && s.finishedAt)

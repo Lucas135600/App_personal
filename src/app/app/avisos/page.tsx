@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { requirePersonal } from "@/lib/auth";
-import { getDb } from "@/lib/db";
+import { getDb } from "@/lib/scope";
 import { buildDashboard } from "@/lib/queries";
 import {
   clearPersonalNotificationsAction,
@@ -11,8 +11,8 @@ import { Avatar, Badge, Button, Card, EmptyState, SectionTitle, Stat } from "@/c
 
 export default async function NotificationsPage() {
   const pro = await requirePersonal();
-  const db = getDb();
-  const dashboard = buildDashboard(pro.id);
+  const db = await getDb();
+  const dashboard = await buildDashboard(pro.id);
 
   const notifications = db.notifications
     .filter((n) => n.userId === pro.id)

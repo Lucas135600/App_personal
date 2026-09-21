@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { requirePersonal } from "@/lib/auth";
-import { getDb } from "@/lib/db";
+import { getDb } from "@/lib/scope";
 import { logoutAction } from "@/lib/actions/auth";
 import { Logo } from "@/components/logo";
 import { Avatar } from "@/components/ui";
@@ -8,7 +8,7 @@ import { SideNav } from "@/components/side-nav";
 
 export default async function PersonalLayout({ children }: { children: React.ReactNode }) {
   const pro = await requirePersonal();
-  const db = getDb();
+  const db = await getDb();
   const unread = db.notifications.filter((n) => n.userId === pro.id && !n.read).length;
 
   return (

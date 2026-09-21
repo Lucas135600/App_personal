@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { requirePersonal } from "@/lib/auth";
-import { getDb } from "@/lib/db";
+import { getDb } from "@/lib/scope";
 import { saveExerciseAction } from "@/lib/actions/personal";
 import { Badge, Button, Card, Field, Input, SectionTitle, Select, Textarea } from "@/components/ui";
 
@@ -11,7 +11,7 @@ export default async function ExercisesPage({
 }) {
   await requirePersonal();
   const { g = "todos", q = "" } = await searchParams;
-  const db = getDb();
+  const db = await getDb();
 
   const groups = Array.from(new Set(db.exercises.map((e) => e.muscleGroup))).sort();
   const list = db.exercises

@@ -1,10 +1,10 @@
 import { requireStudent } from "@/lib/auth";
-import { getDb } from "@/lib/db";
+import { getDb } from "@/lib/scope";
 import { AnamnesisWizard } from "./wizard";
 
 export default async function StudentAnamnesisPage() {
   const { student } = await requireStudent();
-  const db = getDb();
+  const db = await getDb();
   const record = db.anamnesis.find((a) => a.studentId === student.id);
 
   return (

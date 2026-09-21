@@ -10,7 +10,8 @@
     "lint": "next lint",
     "seed:reset": "node scripts/reset-db.mjs",
     "icons": "node scripts/gen-icons.mjs",
-    "db:push": "node scripts/db-push.mjs"
+    "db:push": "node scripts/db-push.mjs",
+    "db:test": "node scripts/db-test.mjs"
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.5.8",

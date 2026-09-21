@@ -1,14 +1,17 @@
 import Link from "next/link";
 import { requireStudent } from "@/lib/auth";
-import { getDb } from "@/lib/db";
+import { getDb } from "@/lib/scope";
 import { activePlanWorkouts, resolveWorkout } from "@/lib/queries";
 import { formatDate, WEEKDAY_LABELS } from "@/lib/dates";
 import { Badge, Card, EmptyState, SectionTitle } from "@/components/ui";
 
 export default async function StudentWorkoutsPage() {
   const { student } = await requireStudent();
-  const { planName, workouts } = activePlanWorkouts(student.id);
-  const db = getDb();
+  const { planName, workouts } = await activePlanWorkouts(student.id);
+  const db = await getDb();
+  const resolvidos = await Promise.all(
+    workouts.map(async (w) => ({ w, resolved: (await resolveWorkout(w.id, student.id))! })),
+  );
 
   return (
     <div className="space-y-5 lb-enter">
@@ -21,8 +24,7 @@ export default async function StudentWorkoutsPage() {
         <EmptyState title="Nenhum treino prescrito" description="Assim que o Lucas montar seu bloco ele aparece aqui." />
       ) : (
         <div className="space-y-3">
-          {workouts.map((w) => {
-            const resolved = resolveWorkout(w.id, student.id)!;
+          {resolvidos.map(({ w, resolved }) => {
             const last = db.workoutSessions
               .filter((s) => s.studentId === student.id && s.workoutId === w.id && s.finishedAt)
               .sort((a, b) => b.startedAt.localeCompare(a.startedAt))[0];

@@ -1,5 +1,5 @@
 import { requireStudent } from "@/lib/auth";
-import { getDb } from "@/lib/db";
+import { getDb } from "@/lib/scope";
 import { buildStudentView, measurementSeries, weeklyFrequency, weightSeries } from "@/lib/queries";
 import { currentMonth, formatMonth, formatShortDate } from "@/lib/dates";
 import { LineChart, TargetBars } from "@/components/charts";
@@ -11,8 +11,8 @@ const ANGLES = ["frente", "lateral", "costas"] as const;
 
 export default async function StudentEvolutionPage() {
   const { student } = await requireStudent();
-  const view = buildStudentView(student.id)!;
-  const db = getDb();
+  const view = (await buildStudentView(student.id))!;
+  const db = await getDb();
 
   const months = Array.from(
     new Set([...view.photoMonths, currentMonth()]),
@@ -30,7 +30,7 @@ export default async function StudentEvolutionPage() {
   }));
 
   const thisMonthSlots = photoMonths.find((m) => m.month === currentMonth())!;
-  const freq = weeklyFrequency(student.id, 8).map((p) => ({
+  const freq = (await weeklyFrequency(student.id, 8)).map((p) => ({
     label: formatShortDate(p.weekStart),
     done: p.done,
     planned: p.planned,
@@ -69,7 +69,7 @@ export default async function StudentEvolutionPage() {
 
       <Card>
         <LineChart
-          points={weightSeries(student.id)}
+          points={await weightSeries(student.id)}
           unit=" kg"
           label="Peso"
           invertGood={student.goal === "Emagrecimento"}
@@ -77,7 +77,7 @@ export default async function StudentEvolutionPage() {
       </Card>
 
       <Card>
-        <LineChart points={measurementSeries(student.id, "cintura")} unit=" cm" label="Cintura" invertGood />
+        <LineChart points={await measurementSeries(student.id, "cintura")} unit=" cm" label="Cintura" invertGood />
       </Card>
 
       <Card>

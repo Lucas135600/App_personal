@@ -1,4 +1,4 @@
-import { getDb } from "./db";
+import { getDb } from "./scope";
 import { addDays, currentMonth, currentWeekStart, daysSince, monthGrid, todayISO, weekStart } from "./dates";
 import type {
   Assessment, Checkin, Exercise, Modality, Student, User, Workout, WorkoutExercise,
@@ -40,8 +40,8 @@ export interface StudentView {
 
 const ASSESSMENT_VALID_DAYS = 90;
 
-export function buildStudentView(studentId: string): StudentView | null {
-  const db = getDb();
+export async function buildStudentView(studentId: string): Promise<StudentView | null> {
+  const db = await getDb();
   const student = db.students.find((s) => s.id === studentId);
   if (!student) return null;
   const user = db.users.find((u) => u.id === student.userId)!;
@@ -167,11 +167,15 @@ function ageFrom(birthDate: string): number {
   return a;
 }
 
-export function listStudentViews(professionalId: string): StudentView[] {
-  const db = getDb();
-  return db.students
-    .filter((s) => s.professionalId === professionalId)
-    .map((s) => buildStudentView(s.id)!)
+export async function listStudentViews(professionalId: string): Promise<StudentView[]> {
+  const db = await getDb();
+  const views = await Promise.all(
+    db.students
+      .filter((s) => s.professionalId === professionalId)
+      .map((s) => buildStudentView(s.id)),
+  );
+  return views
+    .filter((v): v is StudentView => v !== null)
     .sort((a, b) => a.user.name.localeCompare(b.user.name));
 }
 
@@ -191,9 +195,9 @@ export interface DashboardData {
   assessmentsDue: number;
 }
 
-export function buildDashboard(professionalId: string): DashboardData {
-  const views = listStudentViews(professionalId);
-  const db = getDb();
+export async function buildDashboard(professionalId: string): Promise<DashboardData> {
+  const views = await listStudentViews(professionalId);
+  const db = await getDb();
   const today = todayISO();
   const dow = new Date(`${today}T12:00:00`).getDay();
 
@@ -254,8 +258,8 @@ export interface ResolvedWorkout {
   totalSets: number;
 }
 
-export function resolveWorkout(workoutId: string, studentId: string): ResolvedWorkout | null {
-  const db = getDb();
+export async function resolveWorkout(workoutId: string, studentId: string): Promise<ResolvedWorkout | null> {
+  const db = await getDb();
   const workout = db.workouts.find((w) => w.id === workoutId);
   if (!workout) return null;
 
@@ -283,8 +287,8 @@ export function resolveWorkout(workoutId: string, studentId: string): ResolvedWo
   return { workout, items, totalSets: items.reduce((acc, i) => acc + i.item.sets, 0) };
 }
 
-export function activePlanWorkouts(studentId: string): { planName: string; workouts: Workout[] } {
-  const db = getDb();
+export async function activePlanWorkouts(studentId: string): Promise<{ planName: string; workouts: Workout[] }> {
+  const db = await getDb();
   const plan = db.trainingPlans.find((p) => p.studentId === studentId && p.active);
   if (!plan) return { planName: "", workouts: [] };
   return {
@@ -296,9 +300,9 @@ export function activePlanWorkouts(studentId: string): { planName: string; worko
 }
 
 /** Próximo treino: o do dia da semana, senão o que há mais tempo não é feito. */
-export function nextWorkoutFor(studentId: string): Workout | null {
-  const db = getDb();
-  const { workouts } = activePlanWorkouts(studentId);
+export async function nextWorkoutFor(studentId: string): Promise<Workout | null> {
+  const db = await getDb();
+  const { workouts } = await activePlanWorkouts(studentId);
   if (!workouts.length) return null;
 
   const dow = new Date(`${todayISO()}T12:00:00`).getDay();
@@ -321,8 +325,8 @@ export interface WeeklyPoint {
   done: number;
 }
 
-export function weeklyFrequency(studentId: string, weeks = 8): WeeklyPoint[] {
-  const db = getDb();
+export async function weeklyFrequency(studentId: string, weeks = 8): Promise<WeeklyPoint[]> {
+  const db = await getDb();
   const student = db.students.find((s) => s.id === studentId)!;
   const start = currentWeekStart();
   const points: WeeklyPoint[] = [];
@@ -342,8 +346,8 @@ export function weeklyFrequency(studentId: string, weeks = 8): WeeklyPoint[] {
 }
 
 /** Série temporal de peso combinando avaliações e check-ins. */
-export function weightSeries(studentId: string): Array<{ date: string; value: number }> {
-  const db = getDb();
+export async function weightSeries(studentId: string): Promise<Array<{ date: string; value: number }>> {
+  const db = await getDb();
   const points: Array<{ date: string; value: number }> = [];
   for (const a of db.assessments.filter((a) => a.studentId === studentId)) {
     if (a.weight != null) points.push({ date: a.date, value: a.weight });
@@ -354,36 +358,25 @@ export function weightSeries(studentId: string): Array<{ date: string; value: nu
   return points.sort((a, b) => a.date.localeCompare(b.date));
 }
 
-export function measurementSeries(
+export async function measurementSeries(
   studentId: string,
   key: keyof Assessment["measurements"],
-): Array<{ date: string; value: number }> {
-  return getDb()
+): Promise<Array<{ date: string; value: number }>> {
+  const db = await getDb();
+  return db
     .assessments.filter((a) => a.studentId === studentId && a.measurements[key] != null)
     .sort((a, b) => a.date.localeCompare(b.date))
     .map((a) => ({ date: a.date, value: a.measurements[key]! }));
 }
 
-export function checkinHistory(studentId: string, limit = 8): Checkin[] {
-  return getDb()
+export async function checkinHistory(studentId: string, limit = 8): Promise<Checkin[]> {
+  const db = await getDb();
+  return db
     .checkins.filter((c) => c.studentId === studentId)
     .sort((a, b) => b.weekStart.localeCompare(a.weekStart))
     .slice(0, limit);
 }
 
-/** Garante que existe o registro de check-in da semana corrente. */
-export function ensureCurrentCheckin(studentId: string, professionalId: string, db = getDb()) {
-  const ws = currentWeekStart();
-  const found = db.checkins.find((c) => c.studentId === studentId && c.weekStart === ws);
-  if (found) return found;
-  const created: Checkin = {
-    id: `chk_${Math.random().toString(36).slice(2, 10)}`,
-    studentId, professionalId, weekStart: ws,
-    status: "pendente", answeredAt: null, answers: null, coachReply: "",
-  };
-  db.checkins.push(created);
-  return created;
-}
 
 export function weekStartOf(iso: string) {
   return weekStart(iso);
@@ -436,8 +429,8 @@ function emptyTotals(): AgendaTotals {
   return { presenciaisPrevistas: 0, presenciaisRealizadas: 0, faltas: 0, treinosOnline: 0 };
 }
 
-export function buildAgenda(professionalId: string, month: string): AgendaData {
-  const db = getDb();
+export async function buildAgenda(professionalId: string, month: string): Promise<AgendaData> {
+  const db = await getDb();
   const today = todayISO();
 
   const alunos: AgendaStudent[] = db.students
@@ -567,8 +560,8 @@ export interface StudentAttendance {
 /** Frequência de um aluno num mês: previsto x realizado, dia a dia.
  *  Para presencial e híbrido o que vale é a presença registrada pelo personal;
  *  para o aluno online, a sessão de treino que ele mesmo concluiu. */
-export function buildStudentAttendance(studentId: string, month: string): StudentAttendance | null {
-  const db = getDb();
+export async function buildStudentAttendance(studentId: string, month: string): Promise<StudentAttendance | null> {
+  const db = await getDb();
   const student = db.students.find((s) => s.id === studentId);
   if (!student) return null;
 

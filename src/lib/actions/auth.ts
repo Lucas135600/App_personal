@@ -13,7 +13,7 @@ export async function loginAction(_prev: LoginState, formData: FormData): Promis
 
   if (!email || !password) return { error: "Informe e-mail e senha." };
 
-  const user = authenticate(email, password);
+  const user = await authenticate(email, password);
   if (!user) return { error: "E-mail ou senha inválidos." };
 
   await startSession(user.id);

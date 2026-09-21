@@ -19,7 +19,7 @@ export default async function AgendaPage({
   const params = await searchParams;
 
   const month = /^\d{4}-\d{2}$/.test(params.mes ?? "") ? params.mes! : currentMonth();
-  const agenda = buildAgenda(pro.id, month);
+  const agenda = await buildAgenda(pro.id, month);
 
   const selectedDate =
     params.dia && /^\d{4}-\d{2}-\d{2}$/.test(params.dia) ? params.dia : todayISO();

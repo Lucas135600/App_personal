@@ -1,4 +1,4 @@
-import { getDb } from "@/lib/db";
+import { getDb } from "@/lib/scope";
 import Link from "next/link";
 import {
   activePlanWorkouts, buildStudentAttendance, checkinHistory, measurementSeries,
@@ -29,13 +29,13 @@ type HabitKey = "water" | "nutrition" | "sleep" | "steps" | "supplement";
 
 /* ------------------------------------------------------------ visão geral */
 
-export function OverviewTab({ view }: { view: StudentView }) {
-  const freq = weeklyFrequency(view.student.id, 8).map((p) => ({
+export async function OverviewTab({ view }: { view: StudentView }) {
+  const freq = (await weeklyFrequency(view.student.id, 8)).map((p) => ({
     label: formatShortDate(p.weekStart),
     done: p.done,
     planned: p.planned,
   }));
-  const weight = weightSeries(view.student.id);
+  const weight = await weightSeries(view.student.id);
   const a = view.lastAssessment;
 
   return (
@@ -129,10 +129,13 @@ export function OverviewTab({ view }: { view: StudentView }) {
 
 /* ---------------------------------------------------------------- treinos */
 
-export function WorkoutsTab({ view }: { view: StudentView }) {
-  const db = getDb();
-  const { planName, workouts } = activePlanWorkouts(view.student.id);
+export async function WorkoutsTab({ view }: { view: StudentView }) {
+  const db = await getDb();
+  const { planName, workouts } = await activePlanWorkouts(view.student.id);
   const library = [...db.exercises].sort((a, b) => a.name.localeCompare(b.name));
+  const resolvidos = await Promise.all(
+    workouts.map(async (w) => ({ w, resolved: (await resolveWorkout(w.id, view.student.id))! })),
+  );
 
   return (
     <div className="space-y-6">
@@ -163,8 +166,7 @@ export function WorkoutsTab({ view }: { view: StudentView }) {
         <EmptyState title="Nenhum treino prescrito" description="Crie o treino A para começar o bloco deste aluno." />
       )}
 
-      {workouts.map((w) => {
-        const resolved = resolveWorkout(w.id, view.student.id)!;
+      {resolvidos.map(({ w, resolved }) => {
         return (
           <Card key={w.id}>
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
@@ -263,8 +265,8 @@ export function WorkoutsTab({ view }: { view: StudentView }) {
 
 /* --------------------------------------------------------------- check-ins */
 
-export function CheckinsTab({ view }: { view: StudentView }) {
-  const history = checkinHistory(view.student.id, 10);
+export async function CheckinsTab({ view }: { view: StudentView }) {
+  const history = await checkinHistory(view.student.id, 10);
 
   return (
     <div className="space-y-4">
@@ -336,11 +338,15 @@ const MEASURE_FIELDS: Array<[keyof NonNullable<StudentView["lastAssessment"]>["m
   ["peitoral", "Peitoral"],
 ];
 
-export function AssessmentsTab({ view }: { view: StudentView }) {
-  const db = getDb();
+export async function AssessmentsTab({ view }: { view: StudentView }) {
+  const db = await getDb();
   const list = db.assessments
     .filter((a) => a.studentId === view.student.id)
     .sort((a, b) => b.date.localeCompare(a.date));
+  const [cintura, bracoD] = await Promise.all([
+    measurementSeries(view.student.id, "cintura"),
+    measurementSeries(view.student.id, "bracoD"),
+  ]);
 
   return (
     <div className="space-y-6">
@@ -368,8 +374,8 @@ export function AssessmentsTab({ view }: { view: StudentView }) {
       </Card>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <Card><LineChart points={measurementSeries(view.student.id, "cintura")} unit=" cm" label="Cintura" invertGood /></Card>
-        <Card><LineChart points={measurementSeries(view.student.id, "bracoD")} unit=" cm" label="Braço direito" /></Card>
+        <Card><LineChart points={cintura} unit=" cm" label="Cintura" invertGood /></Card>
+        <Card><LineChart points={bracoD} unit=" cm" label="Braço direito" /></Card>
       </div>
 
       <Card padded={false}>
@@ -411,8 +417,8 @@ export function AssessmentsTab({ view }: { view: StudentView }) {
 
 /* ---------------------------------------------------------------- evolução */
 
-export function EvolutionTab({ view }: { view: StudentView }) {
-  const db = getDb();
+export async function EvolutionTab({ view }: { view: StudentView }) {
+  const db = await getDb();
   const months = view.photoMonths.map((month) => ({
     month,
     slots: (["frente", "lateral", "costas"] as const).map((angle) => ({
@@ -426,8 +432,8 @@ export function EvolutionTab({ view }: { view: StudentView }) {
 
   return (
     <div className="grid gap-6 lg:grid-cols-2">
-      <Card><LineChart points={weightSeries(view.student.id)} unit=" kg" label="Peso" invertGood={view.student.goal === "Emagrecimento"} /></Card>
-      <Card><LineChart points={measurementSeries(view.student.id, "quadril")} unit=" cm" label="Quadril" invertGood /></Card>
+      <Card><LineChart points={await weightSeries(view.student.id)} unit=" kg" label="Peso" invertGood={view.student.goal === "Emagrecimento"} /></Card>
+      <Card><LineChart points={await measurementSeries(view.student.id, "quadril")} unit=" cm" label="Quadril" invertGood /></Card>
       <Card className="lg:col-span-2">
         <SectionTitle>Fotos de evolução</SectionTitle>
         <p className="mb-4 text-xs text-ink-500">
@@ -441,8 +447,8 @@ export function EvolutionTab({ view }: { view: StudentView }) {
 
 /* ---------------------------------------------------------------- anamnese */
 
-export function AnamnesisTab({ view }: { view: StudentView }) {
-  const db = getDb();
+export async function AnamnesisTab({ view }: { view: StudentView }) {
+  const db = await getDb();
   const a = db.anamnesis.find((x) => x.studentId === view.student.id);
   const answers = a?.answers ?? {};
 
@@ -493,8 +499,8 @@ export function AnamnesisTab({ view }: { view: StudentView }) {
 
 /* ----------------------------------------------------------------- hábitos */
 
-export function HabitsTab({ view }: { view: StudentView }) {
-  const db = getDb();
+export async function HabitsTab({ view }: { view: StudentView }) {
+  const db = await getDb();
   const days = Array.from({ length: 14 }, (_, i) => addDays(todayISO(), -13 + i));
   const rows: Array<[string, HabitKey]> = [
     ["Água", "water"],
@@ -562,9 +568,9 @@ export function HabitsTab({ view }: { view: StudentView }) {
 
 const ORDEM_SEMANA = [1, 2, 3, 4, 5, 6, 0]; // segunda a domingo
 
-export function HistoryTab({ view, month }: { view: StudentView; month: string }) {
-  const db = getDb();
-  const freq = buildStudentAttendance(view.student.id, month);
+export async function HistoryTab({ view, month }: { view: StudentView; month: string }) {
+  const db = await getDb();
+  const freq = await buildStudentAttendance(view.student.id, month);
   const sessions = db.workoutSessions
     .filter((s) => s.studentId === view.student.id && s.finishedAt)
     .sort((a, b) => b.startedAt.localeCompare(a.startedAt))
@@ -625,7 +631,7 @@ export function HistoryTab({ view, month }: { view: StudentView; month: string }
   );
 }
 
-function AttendanceCalendar({
+async function AttendanceCalendar({
   view,
   freq,
 }: {

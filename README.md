@@ -19,8 +19,11 @@ npm install
 npm run dev
 ```
 
-Abra <http://localhost:3000>. O banco local (`data/db.json`) e os uploads (`data/uploads/`) são
-criados na primeira execução, já populados com dados de demonstração.
+Abra <http://localhost:3000>. Não precisa instalar Postgres nem criar conta: o app sobe um
+**PGlite** (o próprio Postgres compilado em WASM) em `data/pg` e o popula com os dados de
+demonstração no primeiro acesso. As fotos ficam em `data/uploads/`.
+
+O mesmo SQL roda no Supabase em produção — o que passa aqui passa lá.
 
 Para testar no celular, use o IP da máquina na mesma rede — o dev server já escuta em `0.0.0.0`:
 
@@ -128,15 +131,33 @@ Apaga `data/` por completo. O seed é recriado no próximo acesso.
 | Web | Next.js 15 (App Router) + React 19 + TypeScript | server components e server actions eliminam quase toda a camada de API no MVP |
 | Estilo | Tailwind CSS v4 | design system por tokens em `globals.css` |
 | Gráficos | SVG próprio (`src/components/charts.tsx`) | zero dependência, renderiza no servidor, leve no celular |
-| Dados | arquivo JSON local (`src/lib/db.ts`) | roda sem conta externa nem serviço; a camada é isolada para trocar por Postgres/Supabase depois |
+| Dados | Postgres — Supabase em produção, PGlite em desenvolvimento | mesmo SQL nos dois; desenvolver não exige conta nem instalação |
 | Sessão | cookie HttpOnly assinado com HMAC | sem dependência de auth externa no MVP |
 
-### Por que não Supabase já na primeira versão
+### Como os dados são lidos
 
-Para você validar o produto com alunos reais o quanto antes, o MVP não depende de nenhuma conta
-ou serviço externo. Todo acesso a dados passa por `src/lib/db.ts` e `src/lib/queries.ts`, então
-a troca para Postgres + Supabase Auth + Storage é uma substituição dessas duas camadas, não uma
-reescrita das telas.
+`getDb()` devolve um retrato do banco **já limitado ao profissional da sessão** — um punhado de
+consultas fixo, independente da quantidade de alunos. Buscar aluno por aluno daria dezenas de
+idas ao banco por tela, e em serverless cada ida custa latência de rede. O `cache()` do React
+garante uma carga por requisição mesmo quando a página chama `getDb()` em vários lugares.
+
+O escopo é o próprio isolamento multi-tenant: um profissional nunca carrega linha de outro.
+
+As escritas não passam por aí. Cada uma é um comando SQL dirigido em `repo-write.ts`, e as que
+tocam mais de uma tabela vão em transação. É a diferença que mais importa em relação ao arquivo
+JSON anterior: lá toda escrita regravava o arquivo inteiro, e dois alunos salvando ao mesmo
+tempo perdiam uma das gravações.
+
+### Verificando o banco
+
+```bash
+npm run db:test
+```
+
+Sobe um Postgres descartável e confere os invariantes que o banco passou a garantir: presença e
+hábito não duplicam, check-in é único por semana, foto é única por mês e ângulo, salvar parte da
+anamnese não apaga o resto, sessão e séries entram juntas ou nenhuma entra, apagar treino não
+deixa linha órfã, e um profissional não alcança aluno de outro.
 
 ---
 
@@ -156,7 +177,12 @@ src/
   components/                 design system, gráficos, navegação
   lib/
     types.ts                  modelo de dados
-    db.ts                     leitura/escrita da base local
+    schema.sql                as 15 tabelas, com índices e restrições
+    sql.ts                    conexão: Postgres em produção, PGlite em desenvolvimento
+    repo.ts                   leitura: SQL -> domínio, e o retrato por profissional
+    repo-write.ts             escrita: um comando dirigido por operação de negócio
+    scope.ts                  getDb() — retrato limitado à sessão
+    db.ts                     ids, hash de senha e arquivos
     seed.ts                   dados de demonstração
     seed-photos.ts            gera as fotos de evolução da demonstração
     placeholder-photo.ts      encoder PNG + silhueta sintética (sem dependências)

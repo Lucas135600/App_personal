@@ -22,7 +22,7 @@ export default async function StudentsPage({
 }) {
   const pro = await requirePersonal();
   const { f = "todos", q = "" } = await searchParams;
-  const all = listStudentViews(pro.id);
+  const all = await listStudentViews(pro.id);
 
   const filtered = all.filter((v) => {
     if (q && !v.user.name.toLowerCase().includes(q.toLowerCase())) return false;

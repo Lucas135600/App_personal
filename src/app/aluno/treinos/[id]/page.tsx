@@ -8,10 +8,10 @@ export default async function WorkoutPage({ params }: { params: Promise<{ id: st
   const { student } = await requireStudent();
   const { id } = await params;
 
-  const { workouts } = activePlanWorkouts(student.id);
+  const { workouts } = await activePlanWorkouts(student.id);
   if (!workouts.some((w) => w.id === id)) notFound();
 
-  const resolved = resolveWorkout(id, student.id);
+  const resolved = await resolveWorkout(id, student.id);
   if (!resolved) notFound();
 
   const items: RunnerItem[] = resolved.items.map((r) => ({

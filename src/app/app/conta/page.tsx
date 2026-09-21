@@ -1,12 +1,12 @@
 import { requirePersonal } from "@/lib/auth";
-import { getDb } from "@/lib/db";
+import { getDb } from "@/lib/scope";
 import { formatDate } from "@/lib/dates";
 import { Avatar, Card, SectionTitle } from "@/components/ui";
 import { AccountForm } from "./account-form";
 
 export default async function AccountPage() {
   const pro = await requirePersonal();
-  const db = getDb();
+  const db = await getDb();
   const alunos = db.students.filter((s) => s.professionalId === pro.id).length;
 
   return (

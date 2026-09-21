@@ -1,5 +1,5 @@
 import { requireStudent } from "@/lib/auth";
-import { getDb } from "@/lib/db";
+import { getDb } from "@/lib/scope";
 import { toggleHabitAction } from "@/lib/actions/student";
 import { currentWeekStart, formatShortDate, todayISO, WEEKDAY_LABELS, weekDays } from "@/lib/dates";
 import { Card, Progress, SectionTitle, toneForScore } from "@/components/ui";
@@ -14,7 +14,7 @@ const HABITS: Array<{ key: "water" | "nutrition" | "sleep" | "steps" | "suppleme
 
 export default async function HabitsPage() {
   const { student } = await requireStudent();
-  const db = getDb();
+  const db = await getDb();
   const days = weekDays(currentWeekStart());
   const today = todayISO();
 

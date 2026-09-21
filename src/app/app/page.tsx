@@ -8,7 +8,7 @@ import { MODALITY_LABEL } from "@/lib/labels";
 
 export default async function DashboardPage() {
   const pro = await requirePersonal();
-  const d = buildDashboard(pro.id);
+  const d = await buildDashboard(pro.id);
   const hour = new Date().getHours();
   const greeting = hour < 12 ? "Bom dia" : hour < 18 ? "Boa tarde" : "Boa noite";
   const dow = new Date(`${todayISO()}T12:00:00`).getDay();

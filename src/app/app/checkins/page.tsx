@@ -1,14 +1,14 @@
 import Link from "next/link";
 import { requirePersonal } from "@/lib/auth";
-import { getDb } from "@/lib/db";
+import { getDb } from "@/lib/scope";
 import { listStudentViews } from "@/lib/queries";
 import { addDays, currentWeekStart, formatDate } from "@/lib/dates";
 import { Avatar, Badge, Card, EmptyState, SectionTitle, Stat } from "@/components/ui";
 
 export default async function CheckinsPage() {
   const pro = await requirePersonal();
-  const db = getDb();
-  const views = listStudentViews(pro.id);
+  const db = await getDb();
+  const views = await listStudentViews(pro.id);
   const thisWeek = currentWeekStart();
 
   const rows = views.map((v) => ({

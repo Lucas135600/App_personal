@@ -1,6 +1,7 @@
 import { requireStudent } from "@/lib/auth";
-import { getDb, mutate } from "@/lib/db";
-import { checkinHistory, ensureCurrentCheckin } from "@/lib/queries";
+import { getDb } from "@/lib/scope";
+import { checkinHistory } from "@/lib/queries";
+import { ensureCurrentCheckinAction } from "@/lib/actions/student";
 import { addDays, currentWeekStart, formatDate } from "@/lib/dates";
 import { Badge, Card, SectionTitle } from "@/components/ui";
 import { CheckinForm } from "./checkin-form";
@@ -9,12 +10,13 @@ import { SCALE_LABEL } from "@/lib/labels";
 
 export default async function CheckinPage() {
   const { student } = await requireStudent();
-  mutate((d) => ensureCurrentCheckin(student.id, student.professionalId, d));
+  // o registro da semana precisa existir antes de a tela decidir o que mostrar
+  await ensureCurrentCheckinAction();
 
-  const db = getDb();
+  const db = await getDb();
   const weekStart = currentWeekStart();
-  const current = db.checkins.find((c) => c.studentId === student.id && c.weekStart === weekStart)!;
-  const history = checkinHistory(student.id, 6).filter((c) => c.weekStart !== weekStart);
+  const current = db.checkins.find((c) => c.studentId === student.id && c.weekStart === weekStart);
+  const history = (await checkinHistory(student.id, 6)).filter((c) => c.weekStart !== weekStart);
 
   return (
     <div className="space-y-5 lb-enter">
@@ -25,23 +27,23 @@ export default async function CheckinPage() {
         </p>
       </header>
 
-      {current.status === "respondido" ? (
+      {current?.status === "respondido" ? (
         <Card className="border-ok/30">
           <div className="flex items-center justify-between gap-3">
             <div>
               <p className="font-semibold text-ink-100">Check-in concluído</p>
               <p className="mt-0.5 text-xs text-ink-400">
-                Enviado em {formatDate(current.answeredAt)}
+                Enviado em {formatDate(current?.answeredAt)}
               </p>
             </div>
             <Badge tone="ok">respondido</Badge>
           </div>
-          {current.coachReply && (
+          {current?.coachReply && (
             <div className="mt-4 rounded-xl bg-lime-accent/10 px-3 py-2.5">
               <p className="text-[11px] font-semibold uppercase tracking-wider text-lime-accent">
                 Resposta do Lucas
               </p>
-              <p className="mt-1 text-sm text-ink-200">{current.coachReply}</p>
+              <p className="mt-1 text-sm text-ink-200">{current?.coachReply}</p>
             </div>
           )}
         </Card>
