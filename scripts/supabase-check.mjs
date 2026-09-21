@@ -28,8 +28,15 @@ ok(Boolean(SESSION) && SESSION.length >= 16, `LB_SESSION_SECRET: ${mascara(SESSI
 
 if (DB) {
   console.log("\n— banco");
-  if (!DB.includes(":6543")) {
-    console.log("  aviso  a porta não é 6543; em serverless use a do pooler");
+  // As duas portas são válidas — o que muda é para quê serve cada uma.
+  if (DB.includes(":6543")) {
+    console.log("  info  transaction pooler (6543): certo para a Vercel.");
+    console.log("        Para db:push use a conexão direta (5432) — DDL precisa de sessão.");
+  } else if (DB.includes("pooler.supabase.com")) {
+    console.log("  info  session pooler: serve para os dois usos.");
+  } else {
+    console.log("  info  conexão direta (5432): certa para db:push e para rodar local.");
+    console.log("        Ao publicar na Vercel, troque pelo transaction pooler (6543).");
   }
   const client = new pg.Client({ connectionString: DB, ssl: { rejectUnauthorized: false } });
   try {

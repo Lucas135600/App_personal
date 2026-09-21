@@ -269,9 +269,18 @@ mandar. Resolver a hospedagem resolve o app no celular junto — é a mesma tare
 
 ### Publicando no Supabase
 
-1. No painel do Supabase, **Project Settings → Database → Connection string → URI**. Troque
-   `[YOUR-PASSWORD]` pela senha do banco e use a porta **6543** (o pooler) — em serverless cada
-   função abre conexão própria, e a porta direta esgota o limite.
+1. No painel do Supabase, **Project Settings → Database → Connection string**. O diálogo tem
+   abas; a porta não se edita à mão, escolhe-se a aba:
+
+   - **Direct connection** (porta 5432) — use esta para `npm run db:push` e para rodar local.
+     Criar tabela é DDL e precisa de sessão, coisa que o transaction pooler não mantém.
+   - **Transaction pooler** (porta 6543) — use esta na Vercel. Em serverless cada função abre
+     conexão própria, e a direta esgota o limite.
+
+   Troque `[YOUR-PASSWORD]` pela senha do banco.
+
+   Se a conexão direta falhar com erro de rede, costuma ser IPv6: o host direto resolve só em
+   IPv6 em algumas operadoras. O pooler responde em IPv4 e resolve o caso.
 2. **Project Settings → API → service_role**. Essa chave dá acesso total ao projeto: só no
    servidor, nunca no navegador, nunca no git.
 3. **Storage → New bucket**, nome `fotos-evolucao`, **privado**.
