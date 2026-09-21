@@ -57,6 +57,16 @@ if (DB) {
     }
   } catch (e) {
     ok(false, `não conectou: ${e.message.slice(0, 90)}`);
+    if (e.code === "ENOTFOUND" && /^db\./.test(new URL(DB.replace(/^postgres(ql)?:/, "http:")).hostname)) {
+      console.log("");
+      console.log("        O host da conexão direta só existe em IPv6, e esta rede é só IPv4.");
+      console.log("        Não é erro de senha nem de configuração — daqui não há caminho.");
+      console.log("");
+      console.log("        Troque para o Session pooler, que responde em IPv4:");
+      console.log("        painel > Connect > aba 'Session pooler'. O host vira");
+      console.log("        aws-N-<região>.pooler.supabase.com e o usuário ganha o sufixo do projeto.");
+      console.log("        Ele serve para db:push e para rodar local.");
+    }
   } finally {
     await client.end().catch(() => {});
   }
