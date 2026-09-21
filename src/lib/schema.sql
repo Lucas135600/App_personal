@@ -1,0 +1,204 @@
+-- Esquema do LB Personal Trainner.
+--
+-- Multi-tenant desde o início: tudo que pertence a um aluno carrega
+-- professional_id, para que outros profissionais possam usar a mesma base sem
+-- migração. As buscas do dia a dia são sempre "por profissional" ou "por aluno",
+-- e os índices no fim do arquivo seguem exatamente esses caminhos.
+--
+-- Datas de calendário (dia de treino, check-in, avaliação) são DATE, não
+-- timestamp: elas representam um dia no fuso do personal, e guardar como
+-- timestamp faria o dia mudar conforme o servidor.
+
+CREATE TABLE IF NOT EXISTS users (
+  id              TEXT PRIMARY KEY,
+  email           TEXT NOT NULL UNIQUE,
+  password_hash   TEXT NOT NULL,
+  name            TEXT NOT NULL,
+  role            TEXT NOT NULL CHECK (role IN ('personal', 'student')),
+  professional_id TEXT REFERENCES users(id) ON DELETE CASCADE,
+  avatar_color    TEXT NOT NULL DEFAULT '#9aa1ac',
+  created_at      DATE NOT NULL DEFAULT CURRENT_DATE
+);
+
+CREATE TABLE IF NOT EXISTS students (
+  id              TEXT PRIMARY KEY,
+  user_id         TEXT NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+  professional_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  birth_date      DATE,
+  phone           TEXT NOT NULL DEFAULT '',
+  modality        TEXT NOT NULL CHECK (modality IN ('presencial', 'online', 'hibrido')),
+  goal            TEXT NOT NULL DEFAULT '',
+  status          TEXT NOT NULL DEFAULT 'ativo' CHECK (status IN ('ativo', 'inativo')),
+  start_date      DATE NOT NULL,
+  training_days   SMALLINT[] NOT NULL DEFAULT '{}',
+  notes           TEXT NOT NULL DEFAULT ''
+);
+
+CREATE TABLE IF NOT EXISTS exercises (
+  id              TEXT PRIMARY KEY,
+  professional_id TEXT REFERENCES users(id) ON DELETE CASCADE, -- NULL = biblioteca base
+  name            TEXT NOT NULL,
+  muscle_group    TEXT NOT NULL DEFAULT '',
+  equipment       TEXT NOT NULL DEFAULT '',
+  video_url       TEXT NOT NULL DEFAULT '',
+  instructions    TEXT NOT NULL DEFAULT '',
+  common_mistakes TEXT NOT NULL DEFAULT '',
+  tips            TEXT NOT NULL DEFAULT ''
+);
+
+CREATE TABLE IF NOT EXISTS training_plans (
+  id              TEXT PRIMARY KEY,
+  student_id      TEXT NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+  professional_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  name            TEXT NOT NULL DEFAULT '',
+  goal            TEXT NOT NULL DEFAULT '',
+  start_date      DATE,
+  end_date        DATE,
+  active          BOOLEAN NOT NULL DEFAULT TRUE
+);
+
+CREATE TABLE IF NOT EXISTS workouts (
+  id                TEXT PRIMARY KEY,
+  plan_id           TEXT NOT NULL REFERENCES training_plans(id) ON DELETE CASCADE,
+  label             TEXT NOT NULL DEFAULT 'A',
+  name              TEXT NOT NULL DEFAULT '',
+  weekdays          SMALLINT[] NOT NULL DEFAULT '{}',
+  order_index       INTEGER NOT NULL DEFAULT 0,
+  estimated_minutes INTEGER NOT NULL DEFAULT 50
+);
+
+CREATE TABLE IF NOT EXISTS workout_exercises (
+  id           TEXT PRIMARY KEY,
+  workout_id   TEXT NOT NULL REFERENCES workouts(id) ON DELETE CASCADE,
+  exercise_id  TEXT NOT NULL REFERENCES exercises(id) ON DELETE RESTRICT,
+  order_index  INTEGER NOT NULL DEFAULT 0,
+  sets         INTEGER NOT NULL DEFAULT 3,
+  reps_min     INTEGER NOT NULL DEFAULT 8,
+  reps_max     INTEGER NOT NULL DEFAULT 12,
+  load         NUMERIC(7, 2) NOT NULL DEFAULT 0,
+  rest_seconds INTEGER NOT NULL DEFAULT 60,
+  rir          INTEGER NOT NULL DEFAULT 2,
+  cadence      TEXT NOT NULL DEFAULT '',
+  method       TEXT NOT NULL DEFAULT '',
+  notes        TEXT NOT NULL DEFAULT ''
+);
+
+CREATE TABLE IF NOT EXISTS workout_sessions (
+  id          TEXT PRIMARY KEY,
+  student_id  TEXT NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+  workout_id  TEXT NOT NULL REFERENCES workouts(id) ON DELETE CASCADE,
+  started_at  TIMESTAMPTZ NOT NULL,
+  finished_at TIMESTAMPTZ,
+  -- dia do treino no fuso do personal; é por ele que a agenda conta
+  session_date DATE NOT NULL,
+  rpe         INTEGER,
+  notes       TEXT NOT NULL DEFAULT ''
+);
+
+CREATE TABLE IF NOT EXISTS workout_sets (
+  id                  TEXT PRIMARY KEY,
+  session_id          TEXT NOT NULL REFERENCES workout_sessions(id) ON DELETE CASCADE,
+  workout_exercise_id TEXT NOT NULL REFERENCES workout_exercises(id) ON DELETE CASCADE,
+  set_number          INTEGER NOT NULL,
+  load                NUMERIC(7, 2) NOT NULL DEFAULT 0,
+  reps                INTEGER NOT NULL DEFAULT 0,
+  rpe                 INTEGER,
+  done_at             TIMESTAMPTZ NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS checkins (
+  id              TEXT PRIMARY KEY,
+  student_id      TEXT NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+  professional_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  week_start      DATE NOT NULL,
+  status          TEXT NOT NULL CHECK (status IN ('pendente', 'respondido', 'atrasado')),
+  answered_at     DATE,
+  answers         JSONB,
+  coach_reply     TEXT NOT NULL DEFAULT '',
+  UNIQUE (student_id, week_start)
+);
+
+CREATE TABLE IF NOT EXISTS assessments (
+  id              TEXT PRIMARY KEY,
+  student_id      TEXT NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+  professional_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  date            DATE NOT NULL,
+  weight          NUMERIC(6, 2),
+  height          NUMERIC(4, 2),
+  body_fat        NUMERIC(5, 2),
+  muscle_mass     NUMERIC(6, 2),
+  measurements    JSONB NOT NULL DEFAULT '{}',
+  notes           TEXT NOT NULL DEFAULT ''
+);
+
+CREATE TABLE IF NOT EXISTS progress_photos (
+  id         TEXT PRIMARY KEY,
+  student_id TEXT NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+  month      TEXT NOT NULL,
+  angle      TEXT NOT NULL CHECK (angle IN ('frente', 'lateral', 'costas')),
+  -- chave no storage; o arquivo nunca fica no banco
+  file_name  TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (student_id, month, angle)
+);
+
+CREATE TABLE IF NOT EXISTS habit_logs (
+  id         TEXT PRIMARY KEY,
+  student_id TEXT NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+  date       DATE NOT NULL,
+  water      BOOLEAN NOT NULL DEFAULT FALSE,
+  nutrition  BOOLEAN NOT NULL DEFAULT FALSE,
+  sleep      BOOLEAN NOT NULL DEFAULT FALSE,
+  steps      BOOLEAN NOT NULL DEFAULT FALSE,
+  supplement BOOLEAN NOT NULL DEFAULT FALSE,
+  notes      TEXT NOT NULL DEFAULT '',
+  UNIQUE (student_id, date)
+);
+
+CREATE TABLE IF NOT EXISTS attendance (
+  id              TEXT PRIMARY KEY,
+  student_id      TEXT NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+  professional_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  date            DATE NOT NULL,
+  present         BOOLEAN NOT NULL,
+  notes           TEXT NOT NULL DEFAULT '',
+  UNIQUE (student_id, date)
+);
+
+CREATE TABLE IF NOT EXISTS anamnesis (
+  id              TEXT PRIMARY KEY,
+  student_id      TEXT NOT NULL UNIQUE REFERENCES students(id) ON DELETE CASCADE,
+  professional_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  answered_at     DATE,
+  answers         JSONB NOT NULL DEFAULT '{}'
+);
+
+CREATE TABLE IF NOT EXISTS notifications (
+  id         TEXT PRIMARY KEY,
+  user_id    TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  title      TEXT NOT NULL,
+  body       TEXT NOT NULL DEFAULT '',
+  link       TEXT NOT NULL DEFAULT '',
+  read       BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at DATE NOT NULL DEFAULT CURRENT_DATE
+);
+
+-- Índices seguindo os acessos reais das telas ----------------------------------
+
+CREATE INDEX IF NOT EXISTS idx_students_professional ON students(professional_id);
+CREATE INDEX IF NOT EXISTS idx_exercises_professional ON exercises(professional_id);
+CREATE INDEX IF NOT EXISTS idx_plans_student ON training_plans(student_id);
+CREATE INDEX IF NOT EXISTS idx_workouts_plan ON workouts(plan_id);
+CREATE INDEX IF NOT EXISTS idx_workout_exercises_workout ON workout_exercises(workout_id);
+CREATE INDEX IF NOT EXISTS idx_sessions_student_date ON workout_sessions(student_id, session_date);
+CREATE INDEX IF NOT EXISTS idx_sessions_date ON workout_sessions(session_date);
+CREATE INDEX IF NOT EXISTS idx_sets_session ON workout_sets(session_id);
+CREATE INDEX IF NOT EXISTS idx_sets_exercise ON workout_sets(workout_exercise_id);
+CREATE INDEX IF NOT EXISTS idx_checkins_student ON checkins(student_id, week_start);
+CREATE INDEX IF NOT EXISTS idx_checkins_professional_week ON checkins(professional_id, week_start);
+CREATE INDEX IF NOT EXISTS idx_assessments_student ON assessments(student_id, date);
+CREATE INDEX IF NOT EXISTS idx_photos_student ON progress_photos(student_id, month);
+CREATE INDEX IF NOT EXISTS idx_habits_student_date ON habit_logs(student_id, date);
+CREATE INDEX IF NOT EXISTS idx_attendance_professional_date ON attendance(professional_id, date);
+CREATE INDEX IF NOT EXISTS idx_attendance_student_date ON attendance(student_id, date);
+CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id, created_at DESC);
