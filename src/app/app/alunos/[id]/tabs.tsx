@@ -12,6 +12,7 @@ import {
 } from "@/components/ui";
 import { WeekdayPicker } from "@/components/weekday-picker";
 import { PhotoCompare } from "@/components/photo-compare";
+import { estadoConsentimento } from "@/lib/consent";
 import { AnamnesisForm } from "./anamnesis-form";
 import { HabitTargetsForm } from "./habit-targets-form";
 import {
@@ -453,7 +454,32 @@ export async function AnamnesisTab({ view }: { view: StudentView }) {
   const a = db.anamnesis.find((x) => x.studentId === view.student.id);
   const answers = a?.answers ?? {};
 
+  const consent = estadoConsentimento(db, view.student.id);
+
   return (
+    <div className="space-y-4">
+    <Card>
+      <SectionTitle>Autorizações do aluno</SectionTitle>
+      <div className="grid gap-2 sm:grid-cols-2">
+        <div className="flex items-center justify-between gap-3 rounded-xl bg-ink-850 px-3 py-2.5">
+          <span className="text-sm text-ink-300">Dados de saúde</span>
+          <Badge tone={consent.dados ? "ok" : "danger"}>
+            {consent.dados ? `aceito em ${formatDate(consent.em.dados!.slice(0, 10))}` : "pendente"}
+          </Badge>
+        </div>
+        <div className="flex items-center justify-between gap-3 rounded-xl bg-ink-850 px-3 py-2.5">
+          <span className="text-sm text-ink-300">Fotos para avaliação</span>
+          <Badge tone={consent.imagem ? "ok" : "neutral"}>
+            {consent.imagem ? "autorizado" : "não autorizado"}
+          </Badge>
+        </div>
+      </div>
+      <p className="mt-3 text-xs leading-relaxed text-ink-500">
+        Quem não autorizou o uso de fotos não vê o envio de imagem no aplicativo. A
+        decisão é do aluno e ele pode mudar pelo próprio perfil.
+      </p>
+    </Card>
+
     <Card>
       <SectionTitle
         action={
@@ -467,6 +493,7 @@ export async function AnamnesisTab({ view }: { view: StudentView }) {
 
       <AnamnesisForm studentId={view.student.id} answers={answers} />
     </Card>
+    </div>
   );
 }
 

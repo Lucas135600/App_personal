@@ -467,3 +467,21 @@ export async function markNotificationsRead(userId: string) {
 export async function clearNotifications(userId: string) {
   await sql("DELETE FROM notifications WHERE user_id = $1", [userId]);
 }
+
+/* ------------------------------------------------------- consentimento LGPD */
+
+/** Grava uma decisão de consentimento. Nunca sobrescreve a anterior: o
+ *  histórico é o que prova o que foi aceito, quando e com qual texto — e uma
+ *  revogação é só mais uma linha, não um apagamento. */
+export async function recordConsent(
+  studentId: string,
+  kind: "dados" | "imagem",
+  granted: boolean,
+  version: string,
+) {
+  await sql(
+    `INSERT INTO consents (id, student_id, kind, granted, version)
+     VALUES ($1, $2, $3, $4, $5)`,
+    [id("cns"), studentId, kind, granted, version],
+  );
+}

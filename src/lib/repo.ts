@@ -1,6 +1,6 @@
 import { sql, sqlOne } from "./sql";
 import type {
-  Anamnesis, Assessment, Attendance, Checkin, Database, Exercise, HabitLog,
+  Anamnesis, Assessment, Attendance, Checkin, Consent, Database, Exercise, HabitLog,
   HabitStatus, HabitTarget,
   Notification, ProgressPhoto, Student, TrainingPlan, User, Workout,
   WorkoutExercise, WorkoutSession, WorkoutSet,
@@ -179,6 +179,11 @@ const toHabitTarget = (r: R): HabitTarget => ({
   supplement: s(r.supplement), updatedAt: date(r.updated_at),
 });
 
+const toConsent = (r: R): Consent => ({
+  id: s(r.id), studentId: s(r.student_id), kind: s(r.kind) as Consent["kind"],
+  granted: b(r.granted), version: s(r.version), decidedAt: stamp(r.decided_at),
+});
+
 const toAttendance = (r: R): Attendance => ({
   id: s(r.id), studentId: s(r.student_id), professionalId: s(r.professional_id),
   date: date(r.date), present: b(r.present), notes: s(r.notes),
@@ -234,7 +239,7 @@ export async function loadProfessionalData(professionalId: string): Promise<Data
   const [
     users, students, exercises, plans, workouts, workoutExercises,
     sessions, sets, checkins, assessments, photos, habits, habitTargets,
-    attendance, anamnesis, notifications,
+    consents, attendance, anamnesis, notifications,
   ] = await Promise.all([
     sql("SELECT * FROM users WHERE id = $1 OR professional_id = $1", P),
     sql("SELECT * FROM students WHERE professional_id = $1", P),
@@ -265,6 +270,9 @@ export async function loadProfessionalData(professionalId: string): Promise<Data
     sql(`SELECT t.* FROM habit_targets t
            JOIN students st ON st.id = t.student_id
           WHERE st.professional_id = $1`, P),
+    sql(`SELECT cs.* FROM consents cs
+           JOIN students st ON st.id = cs.student_id
+          WHERE st.professional_id = $1`, P),
     sql("SELECT * FROM attendance WHERE professional_id = $1", P),
     sql("SELECT * FROM anamnesis WHERE professional_id = $1", P),
     sql(`SELECT nt.* FROM notifications nt
@@ -287,6 +295,7 @@ export async function loadProfessionalData(professionalId: string): Promise<Data
     progressPhotos: photos.map(toPhoto),
     habitLogs: habits.map(toHabit),
     habitTargets: habitTargets.map(toHabitTarget),
+    consents: consents.map(toConsent),
     attendance: attendance.map(toAttendance),
     anamnesis: anamnesis.map(toAnamnesis),
     notifications: notifications.map(toNotification),

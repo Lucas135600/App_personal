@@ -7,6 +7,8 @@ import { requireStudent } from "@/lib/auth";
 import * as repo from "@/lib/repo-write";
 import { currentMonth, currentWeekStart, todayISO } from "@/lib/dates";
 import { faltandoObrigatorios, rotuloCurto } from "@/lib/anamnesis";
+import { estadoConsentimento, VERSAO_TERMO } from "@/lib/consent";
+import { getDb } from "@/lib/scope";
 import type { PhotoAngle } from "@/lib/types";
 
 interface LoggedSet {
@@ -120,6 +122,13 @@ export async function uploadProgressPhotoAction(formData: FormData) {
   const month = str(formData.get("month")) || currentMonth();
   const file = formData.get("photo");
 
+  /* A tela já esconde o campo sem autorização, mas esconder não é impedir:
+     um envio montado à mão chegaria aqui do mesmo jeito. */
+  const db = await getDb();
+  if (!estadoConsentimento(db, student.id).imagem) {
+    throw new Error("Envio de foto não autorizado. Ajuste a autorização no seu perfil.");
+  }
+
   if (!(file instanceof File) || file.size === 0) throw new Error("Selecione uma foto.");
   if (!ALLOWED_IMAGE.test(file.type)) throw new Error("Use uma imagem JPEG, PNG ou WebP.");
   if (file.size > 15 * 1024 * 1024) throw new Error("Imagem acima de 15 MB.");
@@ -208,6 +217,50 @@ export async function saveStudentAnamnesisAction(
     console.error("saveStudentAnamnesisAction", e);
     return { error: "Não foi possível salvar agora. Tente de novo em instantes." };
   }
+}
+
+/* -------------------------------------------------------- consentimento LGPD */
+
+export interface ConsentState {
+  error?: string;
+  ok?: string;
+}
+
+/** Primeira decisão, na tela que bloqueia o acesso até ser respondida. */
+export async function grantConsentAction(
+  _prev: ConsentState,
+  formData: FormData,
+): Promise<ConsentState> {
+  const { student } = await requireStudent();
+
+  // Sem a base legal para tratar dado de saúde não há serviço a prestar.
+  if (formData.get("dados") !== "on") {
+    return { error: "Para usar o aplicativo é preciso autorizar o tratamento dos dados de saúde." };
+  }
+
+  // A de imagem é separada e opcional de propósito: consentimento exigido como
+  // condição de uso não é livre, e sem liberdade não vale como consentimento.
+  const imagem = formData.get("imagem") === "on";
+
+  try {
+    await repo.recordConsent(student.id, "dados", true, VERSAO_TERMO);
+    await repo.recordConsent(student.id, "imagem", imagem, VERSAO_TERMO);
+  } catch (e) {
+    console.error("grantConsentAction", e);
+    return { error: "Não foi possível registrar agora. Tente de novo em instantes." };
+  }
+
+  revalidatePath("/aluno", "layout");
+  redirect("/aluno");
+}
+
+/** Liga e desliga a autorização de imagem pelo perfil, a qualquer momento. */
+export async function toggleImageConsentAction(formData: FormData) {
+  const { student } = await requireStudent();
+  const autorizar = str(formData.get("autorizar")) === "sim";
+  await repo.recordConsent(student.id, "imagem", autorizar, VERSAO_TERMO);
+  revalidatePath("/aluno/perfil");
+  revalidatePath("/aluno/evolucao");
 }
 
 /* ---------------------------------------------------------------- notificações */

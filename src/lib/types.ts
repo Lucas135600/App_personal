@@ -188,6 +188,20 @@ export interface HabitTarget {
   updatedAt: string;
 }
 
+/** 'dados' = tratar dado de saúde; 'imagem' = usar fotos para avaliação. */
+export type ConsentKind = "dados" | "imagem";
+
+/** Uma decisão de consentimento. O histórico inteiro fica guardado: é ele que
+ *  prova o que foi aceito, quando, e com qual texto. */
+export interface Consent {
+  id: string;
+  studentId: string;
+  kind: ConsentKind;
+  granted: boolean;
+  version: string;
+  decidedAt: string;
+}
+
 export interface Attendance {
   id: string;
   studentId: string;
@@ -234,6 +248,7 @@ export interface Database {
   progressPhotos: ProgressPhoto[];
   habitLogs: HabitLog[];
   habitTargets: HabitTarget[];
+  consents: Consent[];
   attendance: Attendance[];
   anamnesis: Anamnesis[];
   notifications: Notification[];

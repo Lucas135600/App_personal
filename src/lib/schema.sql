@@ -182,6 +182,23 @@ BEGIN
   END LOOP;
 END $$;
 
+/* Consentimentos, um registro por decisão — nunca sobrescreve.
+   A LGPD exige poder provar QUANDO a pessoa consentiu e COM QUAL texto, e
+   exige que ela possa revogar. Guardar só o estado atual perderia as duas
+   coisas: o histórico é o que sustenta a prova, e a revogação é só mais uma
+   linha. O estado vigente é a linha mais recente de cada tipo. */
+CREATE TABLE IF NOT EXISTS consents (
+  id         TEXT PRIMARY KEY,
+  student_id TEXT NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+  -- 'dados': tratar dado de saúde. 'imagem': usar fotos para avaliação.
+  kind       TEXT NOT NULL CHECK (kind IN ('dados', 'imagem')),
+  granted    BOOLEAN NOT NULL,
+  -- versão do texto que a pessoa leu; se o texto mudar, o consentimento antigo
+  -- continua provando o que foi aceito naquele dia
+  version    TEXT NOT NULL,
+  decided_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 /* Metas que o personal define para cada aluno. Uma linha por aluno: são
    orientações vigentes, não histórico. */
 CREATE TABLE IF NOT EXISTS habit_targets (
@@ -243,3 +260,4 @@ CREATE INDEX IF NOT EXISTS idx_attendance_professional_date ON attendance(profes
 CREATE INDEX IF NOT EXISTS idx_attendance_student_date ON attendance(student_id, date);
 CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_habit_targets_professional ON habit_targets(professional_id);
+CREATE INDEX IF NOT EXISTS idx_consents_student ON consents(student_id, kind, decided_at DESC);

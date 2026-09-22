@@ -1,5 +1,7 @@
+import Link from "next/link";
 import { requireStudent } from "@/lib/auth";
 import { getDb } from "@/lib/scope";
+import { estadoConsentimento } from "@/lib/consent";
 import { buildStudentView, measurementSeries, weeklyFrequency, weightSeries } from "@/lib/queries";
 import { currentMonth, formatMonth, formatShortDate } from "@/lib/dates";
 import { LineChart, TargetBars } from "@/components/charts";
@@ -30,6 +32,8 @@ export default async function StudentEvolutionPage() {
   }));
 
   const thisMonthSlots = photoMonths.find((m) => m.month === currentMonth())!;
+  const podeFoto = estadoConsentimento(db, student.id).imagem;
+  const temFoto = photoMonths.some((m) => m.slots.some((s) => s.fileName));
   const freq = (await weeklyFrequency(student.id, 8)).map((p) => ({
     label: formatShortDate(p.weekStart),
     done: p.done,
@@ -84,17 +88,37 @@ export default async function StudentEvolutionPage() {
         <TargetBars data={freq} label="Treinos por semana" />
       </Card>
 
+      {/* Sem a autorização de imagem não existe envio de foto — nem o campo.
+          Deixar o formulário na tela e recusar depois seria pedir a foto de
+          quem já disse que não queria enviar. */}
       <section>
         <SectionTitle>Foto do mês - {formatMonth(currentMonth())}</SectionTitle>
-        <PhotoUploader month={currentMonth()} slots={thisMonthSlots.slots} />
+        {podeFoto ? (
+          <PhotoUploader month={currentMonth()} slots={thisMonthSlots.slots} />
+        ) : (
+          <Card>
+            <p className="text-sm leading-relaxed text-ink-300">
+              Você não autorizou o uso de fotos para avaliação, então esta parte fica
+              desligada. O resto do acompanhamento funciona normalmente.
+            </p>
+            <Link
+              href="/aluno/perfil"
+              className="mt-3 inline-block text-sm font-semibold text-lime-accent"
+            >
+              Mudar essa autorização no perfil
+            </Link>
+          </Card>
+        )}
       </section>
 
-      <section>
-        <SectionTitle>Comparar</SectionTitle>
-        <Card>
-          <PhotoCompare months={photoMonths} />
-        </Card>
-      </section>
+      {podeFoto && temFoto && (
+        <section>
+          <SectionTitle>Comparar</SectionTitle>
+          <Card>
+            <PhotoCompare months={photoMonths} />
+          </Card>
+        </section>
+      )}
 
       <p className="pb-2 text-center text-[11px] leading-relaxed text-ink-600">
         Suas fotos são privadas. Somente você e o Lucas têm acesso, e cada visualização passa por

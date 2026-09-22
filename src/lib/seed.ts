@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import type {
-  Anamnesis, Assessment, Attendance, Checkin, Database, Exercise, HabitLog,
+  Anamnesis, Assessment, Attendance, Checkin, Consent, Database, Exercise, HabitLog,
   HabitStatus, HabitTarget,
   Modality, Notification, Student, TrainingPlan, User, Workout, WorkoutExercise,
   WorkoutSession, WorkoutSet,
@@ -146,6 +146,7 @@ export function buildSeed(): Database {
   const assessments: Assessment[] = [];
   const habitLogs: HabitLog[] = [];
   const habitTargets: HabitTarget[] = [];
+  const consents: Consent[] = [];
   const attendance: Attendance[] = [];
   const anamnesis: Anamnesis[] = [];
   const notifications: Notification[] = [];
@@ -324,6 +325,19 @@ export function buildSeed(): Database {
       });
     }
 
+    /* Aluno de demonstração já aceitou, senão a primeira tela seria sempre a
+       de consentimento. Um deles recusa a imagem, para a versão sem foto
+       aparecer na demonstração em vez de só existir no código. */
+    const aceitouImagem = STUDENTS.indexOf(s) !== 1;
+    consents.push({
+      id: sid("cns"), studentId, kind: "dados", granted: true,
+      version: "2026-09-v1", decidedAt: `${addDays(today, -60)}T12:00:00.000Z`,
+    });
+    consents.push({
+      id: sid("cns"), studentId, kind: "imagem", granted: aceitouImagem,
+      version: "2026-09-v1", decidedAt: `${addDays(today, -60)}T12:00:00.000Z`,
+    });
+
     // Metas de exemplo, para a tela do aluno nascer com algo para cumprir.
     habitTargets.push({
       id: sid("hbt"), studentId, professionalId: PRO_ID,
@@ -366,6 +380,7 @@ export function buildSeed(): Database {
     workoutExercises, workoutSessions, workoutSets, checkins, assessments,
     progressPhotos: seedProgressPhotos(photoInputs),
     habitTargets,
+    consents,
     habitLogs, attendance, anamnesis, notifications,
   };
 }
