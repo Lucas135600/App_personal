@@ -1,9 +1,19 @@
 "use client";
 
-import { useState } from "react";
+import { useActionState, useState } from "react";
+import { useFormStatus } from "react-dom";
 import { ANAMNESIS_STEPS } from "@/lib/anamnesis";
-import { saveStudentAnamnesisAction } from "@/lib/actions/student";
+import { saveStudentAnamnesisAction, type AnamnesisState } from "@/lib/actions/student";
 import { Button, Card, Field, Input, Select, Textarea, cx } from "@/components/ui";
+
+function SubmitButton({ answered }: { answered: boolean }) {
+  const { pending } = useFormStatus();
+  return (
+    <Button type="submit" disabled={pending} className="flex-1">
+      {pending ? "Salvando..." : answered ? "Salvar alterações" : "Enviar anamnese"}
+    </Button>
+  );
+}
 
 /** Etapas curtas: 30 perguntas numa tela única derrubam a taxa de resposta. */
 export function AnamnesisWizard({
@@ -14,12 +24,15 @@ export function AnamnesisWizard({
   answered: boolean;
 }) {
   const [step, setStep] = useState(0);
+  const [state, formAction] = useActionState<AnamnesisState, FormData>(
+    saveStudentAnamnesisAction,
+    {},
+  );
   const total = ANAMNESIS_STEPS.length;
-  const current = ANAMNESIS_STEPS[step];
   const last = step === total - 1;
 
   return (
-    <form action={saveStudentAnamnesisAction} className="space-y-4">
+    <form action={formAction} className="space-y-4">
       <div className="flex items-center gap-1.5">
         {ANAMNESIS_STEPS.map((s, i) => (
           <span
@@ -62,6 +75,13 @@ export function AnamnesisWizard({
         </div>
       ))}
 
+      {/* Sem estas duas linhas a tela fica idêntica depois do envio, e quem
+          respondeu não tem como saber se salvou. */}
+      {state.error && (
+        <p className="rounded-xl bg-danger/10 px-3 py-2 text-sm text-danger">{state.error}</p>
+      )}
+      {state.ok && <p className="rounded-xl bg-ok/10 px-3 py-2 text-sm text-ok">{state.ok}</p>}
+
       <div className="flex gap-2">
         {step > 0 && (
           <Button type="button" variant="outline" onClick={() => setStep((s) => s - 1)} className="flex-1">
@@ -69,9 +89,7 @@ export function AnamnesisWizard({
           </Button>
         )}
         {last ? (
-          <Button type="submit" className="flex-1">
-            {answered ? "Salvar alterações" : "Enviar anamnese"}
-          </Button>
+          <SubmitButton answered={answered} />
         ) : (
           <Button type="button" onClick={() => setStep((s) => s + 1)} className="flex-1">
             Próximo

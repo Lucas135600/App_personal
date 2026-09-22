@@ -240,18 +240,36 @@ export async function markAttendanceAction(formData: FormData) {
 
 /* --------------------------------------------------------------- anamnese */
 
-export async function saveAnamnesisAction(formData: FormData) {
+export interface AnamnesisState {
+  ok?: string;
+  error?: string;
+}
+
+export async function saveAnamnesisAction(
+  _prev: AnamnesisState,
+  formData: FormData,
+): Promise<AnamnesisState> {
+  // Fora do try: requirePersonal redireciona lançando, e engolir isso mostraria
+  // "erro ao salvar" para quem apenas está com a sessão vencida.
   const pro = await requirePersonal();
   const studentId = str(formData.get("studentId"));
   await assertOwnStudent(pro.id, studentId);
 
   const answers: Record<string, string> = {};
   for (const [k, v] of formData.entries()) {
-    if (k !== "studentId") answers[k] = String(v);
+    // studentId é controle do formulário; os $... são campos internos do Next.
+    if (k === "studentId" || k.startsWith("$")) continue;
+    answers[k] = String(v);
   }
-  await repo.saveAnamnesis(studentId, pro.id, answers);
 
-  revalidatePath(`/app/alunos/${studentId}`);
+  try {
+    await repo.saveAnamnesis(studentId, pro.id, answers);
+    revalidatePath(`/app/alunos/${studentId}`);
+    return { ok: "Anamnese salva." };
+  } catch (e) {
+    console.error("saveAnamnesisAction", e);
+    return { error: "Não foi possível salvar agora. Tente de novo em instantes." };
+  }
 }
 
 /* ------------------------------------------------------------- minha conta */

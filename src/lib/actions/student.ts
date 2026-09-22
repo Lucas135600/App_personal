@@ -143,23 +143,51 @@ export async function uploadProgressPhotoAction(formData: FormData) {
 
 /* -------------------------------------------------------------------- anamnese */
 
-export async function saveStudentAnamnesisAction(formData: FormData) {
+export interface AnamnesisState {
+  ok?: string;
+  error?: string;
+}
+
+export async function saveStudentAnamnesisAction(
+  _prev: AnamnesisState,
+  formData: FormData,
+): Promise<AnamnesisState> {
+  // Fora do try de propósito: requireStudent redireciona lançando, e um catch
+  // aqui engoliria o redirecionamento e mostraria "erro ao salvar" para quem
+  // só está com a sessão vencida.
   const { user, student } = await requireStudent();
 
   const answers: Record<string, string> = {};
-  for (const [k, v] of formData.entries()) answers[k] = String(v);
+  for (const [k, v] of formData.entries()) {
+    // O Next injeta campos internos ($ACTION_ID_...) no formulário; eles não
+    // são resposta de ninguém e não têm o que fazer dentro da anamnese.
+    if (k.startsWith("$")) continue;
+    answers[k] = String(v);
+  }
 
-  const primeira = await repo.saveAnamnesis(student.id, student.professionalId, answers);
-  await repo.notify(
-    student.professionalId,
-    primeira ? "Anamnese respondida" : "Anamnese atualizada",
-    `${user.name} ${primeira ? "preencheu" : "revisou"} a anamnese.`,
-    `/app/alunos/${student.id}?tab=anamnese`,
-  );
+  try {
+    const primeira = await repo.saveAnamnesis(student.id, student.professionalId, answers);
+    await repo.notify(
+      student.professionalId,
+      primeira ? "Anamnese respondida" : "Anamnese atualizada",
+      `${user.name} ${primeira ? "preencheu" : "revisou"} a anamnese.`,
+      `/app/alunos/${student.id}?tab=anamnese`,
+    );
 
-  revalidatePath("/aluno/anamnese");
-  revalidatePath("/aluno");
-  revalidatePath("/app/avisos");
+    revalidatePath("/aluno/anamnese");
+    revalidatePath("/aluno");
+    revalidatePath("/app/avisos");
+
+    return {
+      ok: primeira
+        ? "Anamnese enviada. Seu personal já foi avisado."
+        : "Alterações salvas.",
+    };
+  } catch (e) {
+    // Sem isto a tela fica parada e o aluno não sabe se salvou ou não.
+    console.error("saveStudentAnamnesisAction", e);
+    return { error: "Não foi possível salvar agora. Tente de novo em instantes." };
+  }
 }
 
 /* ---------------------------------------------------------------- notificações */

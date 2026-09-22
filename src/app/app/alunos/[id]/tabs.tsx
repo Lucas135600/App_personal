@@ -12,7 +12,7 @@ import {
 } from "@/components/ui";
 import { WeekdayPicker } from "@/components/weekday-picker";
 import { PhotoCompare } from "@/components/photo-compare";
-import { ANAMNESIS_STEPS } from "@/lib/anamnesis";
+import { AnamnesisForm } from "./anamnesis-form";
 import {
   addDays, addMonths, currentMonth, formatDate, formatMonthLong, formatShortDate,
   todayISO, WEEKDAY_LABELS,
@@ -464,35 +464,7 @@ export async function AnamnesisTab({ view }: { view: StudentView }) {
         Anamnese
       </SectionTitle>
 
-      <form action={saveAnamnesisAction} className="space-y-6">
-        <input type="hidden" name="studentId" value={view.student.id} />
-        {ANAMNESIS_STEPS.map((step) => (
-          <fieldset key={step.key} className="rounded-xl border border-ink-800 p-4">
-            <legend className="px-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-lime-accent">
-              {step.title}
-            </legend>
-            <div className="grid gap-3 sm:grid-cols-2">
-              {step.fields.map((f) => (
-                <div key={f.key} className={f.type === "textarea" ? "sm:col-span-2" : ""}>
-                  <Field label={f.label}>
-                    {f.type === "textarea" ? (
-                      <Textarea name={f.key} defaultValue={answers[f.key] ?? ""} />
-                    ) : f.type === "select" ? (
-                      <Select name={f.key} defaultValue={answers[f.key] ?? ""}>
-                        <option value="">--</option>
-                        {f.options?.map((o) => <option key={o}>{o}</option>)}
-                      </Select>
-                    ) : (
-                      <Input name={f.key} defaultValue={answers[f.key] ?? ""} />
-                    )}
-                  </Field>
-                </div>
-              ))}
-            </div>
-          </fieldset>
-        ))}
-        <Button type="submit">Salvar anamnese</Button>
-      </form>
+      <AnamnesisForm studentId={view.student.id} answers={answers} />
     </Card>
   );
 }
