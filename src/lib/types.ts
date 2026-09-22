@@ -158,16 +158,34 @@ export interface ProgressPhoto {
   createdAt: string;
 }
 
+/** 0 = sem resposta, 1 = cumpriu a meta, 2 = não cumpriu.
+ *  "Sem resposta" e "não cumpriu" são coisas diferentes e precisam continuar
+ *  diferentes: misturar as duas faz o dia que ainda nem chegou contar contra
+ *  o aluno. */
+export type HabitStatus = 0 | 1 | 2;
+
 export interface HabitLog {
   id: string;
   studentId: string;
   date: string;
-  water: boolean;
-  nutrition: boolean;
-  sleep: boolean;
-  steps: boolean;
-  supplement: boolean;
+  water: HabitStatus;
+  nutrition: HabitStatus;
+  sleep: HabitStatus;
+  steps: HabitStatus;
+  supplement: HabitStatus;
   notes: string;
+}
+
+/** Metas que o personal define para o aluno. Uma por aluno. */
+export interface HabitTarget {
+  id: string;
+  studentId: string;
+  professionalId: string;
+  /** Em mililitros; a tela mostra em litros. 0 = sem meta definida. */
+  waterMl: number;
+  nutrition: string;
+  supplement: string;
+  updatedAt: string;
 }
 
 export interface Attendance {
@@ -215,6 +233,7 @@ export interface Database {
   assessments: Assessment[];
   progressPhotos: ProgressPhoto[];
   habitLogs: HabitLog[];
+  habitTargets: HabitTarget[];
   attendance: Attendance[];
   anamnesis: Anamnesis[];
   notifications: Notification[];

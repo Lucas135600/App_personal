@@ -357,14 +357,43 @@ export async function markAttendance(
 const CAMPOS_HABITO = ["water", "nutrition", "sleep", "steps", "supplement"] as const;
 export type CampoHabito = (typeof CAMPOS_HABITO)[number];
 
-export async function toggleHabit(studentId: string, date: string, field: CampoHabito) {
+/** Avança o hábito no ciclo sem resposta → cumpriu → não cumpriu → sem resposta.
+ *  O retorno ao neutro existe para o aluno poder desfazer um toque errado. */
+export async function cycleHabit(studentId: string, date: string, field: CampoHabito) {
   if (!CAMPOS_HABITO.includes(field)) throw new Error("Hábito desconhecido.");
   // o nome da coluna vem de uma lista fechada, nunca do texto recebido
   await sql(
     `INSERT INTO habit_logs (id, student_id, date, ${field})
-     VALUES ($1, $2, $3, TRUE)
-     ON CONFLICT (student_id, date) DO UPDATE SET ${field} = NOT habit_logs.${field}`,
+     VALUES ($1, $2, $3, 1)
+     ON CONFLICT (student_id, date) DO UPDATE
+        SET ${field} = CASE habit_logs.${field} WHEN 1 THEN 2 WHEN 2 THEN 0 ELSE 1 END`,
     [id("hab"), studentId, date],
+  );
+}
+
+/* --------------------------------------------------------- metas de hábito */
+
+export interface MetasHabito {
+  waterMl: number;
+  nutrition: string;
+  supplement: string;
+}
+
+export async function saveHabitTargets(
+  studentId: string,
+  professionalId: string,
+  m: MetasHabito,
+) {
+  await sql(
+    `INSERT INTO habit_targets
+       (id, student_id, professional_id, water_ml, nutrition, supplement, updated_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)
+     ON CONFLICT (student_id) DO UPDATE
+        SET water_ml = EXCLUDED.water_ml,
+            nutrition = EXCLUDED.nutrition,
+            supplement = EXCLUDED.supplement,
+            updated_at = EXCLUDED.updated_at`,
+    [id("hbt"), studentId, professionalId, m.waterMl, m.nutrition, m.supplement, todayISO()],
   );
 }
 

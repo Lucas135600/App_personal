@@ -144,6 +144,14 @@ export async function seedDatabase(q: Querier): Promise<void> {
   );
 
   await insertMany(
+    q, "habit_targets",
+    ["id", "student_id", "professional_id", "water_ml", "nutrition", "supplement", "updated_at"],
+    db.habitTargets.map((t) => [
+      t.id, t.studentId, t.professionalId, t.waterMl, t.nutrition, t.supplement, t.updatedAt,
+    ]),
+  );
+
+  await insertMany(
     q, "attendance",
     ["id", "student_id", "professional_id", "date", "present", "notes"],
     db.attendance.map((a) => [a.id, a.studentId, a.professionalId, a.date, a.present, a.notes]),

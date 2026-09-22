@@ -92,15 +92,13 @@ export async function buildStudentView(studentId: string): Promise<StudentView |
   const hasPhotoThisMonth = photoMonths.includes(currentMonth());
 
   const habits = db.habitLogs.filter((h) => h.studentId === studentId && h.date >= addDays(today, -14));
-  const habitScore = habits.length
-    ? Math.round(
-        (habits.reduce(
-          (acc, h) => acc + [h.water, h.nutrition, h.sleep, h.steps].filter(Boolean).length,
-          0,
-        ) /
-          (habits.length * 4)) *
-          100,
-      )
+  // Denominador são as marcações respondidas, não todas as possíveis: dia em
+  // branco é ausência de dado, e contá-lo como falha puniria quem esquece de
+  // marcar tanto quanto quem realmente não cumpriu.
+  const marcacoes = habits.flatMap((h) => [h.water, h.nutrition, h.sleep, h.steps]);
+  const respondidas = marcacoes.filter((v) => v !== 0);
+  const habitScore = respondidas.length
+    ? Math.round((respondidas.filter((v) => v === 1).length / respondidas.length) * 100)
     : 0;
 
   const adherence: Adherence = {

@@ -100,7 +100,7 @@ export async function ensureCurrentCheckinAction() {
 
 export async function toggleHabitAction(formData: FormData) {
   const { student } = await requireStudent();
-  await repo.toggleHabit(
+  await repo.cycleHabit(
     student.id,
     str(formData.get("date")) || todayISO(),
     str(formData.get("field")) as repo.CampoHabito,

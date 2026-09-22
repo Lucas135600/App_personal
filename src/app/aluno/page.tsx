@@ -19,8 +19,10 @@ export default async function StudentHome() {
   const anamnesisPending = !anamnesis?.answeredAt;
 
   const habitToday = db.habitLogs.find((h) => h.studentId === student.id && h.date === todayISO());
+  // Só conta o que foi cumprido (1). "Não cumpri" (2) é resposta, não acerto.
   const habitsDone = habitToday
-    ? [habitToday.water, habitToday.nutrition, habitToday.sleep, habitToday.steps].filter(Boolean).length
+    ? [habitToday.water, habitToday.nutrition, habitToday.sleep, habitToday.steps]
+        .filter((v) => v === 1).length
     : 0;
 
   const trainedToday = db.workoutSessions.some(

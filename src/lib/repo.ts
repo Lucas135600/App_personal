@@ -1,6 +1,7 @@
 import { sql, sqlOne } from "./sql";
 import type {
   Anamnesis, Assessment, Attendance, Checkin, Database, Exercise, HabitLog,
+  HabitStatus, HabitTarget,
   Notification, ProgressPhoto, Student, TrainingPlan, User, Workout,
   WorkoutExercise, WorkoutSession, WorkoutSet,
 } from "./types";
@@ -18,13 +19,29 @@ const n = (v: unknown) => (v == null ? null : Number(v));
 const num = (v: unknown) => Number(v ?? 0);
 const b = (v: unknown) => v === true;
 
-/** DATE volta como Date do driver; o domínio usa "YYYY-MM-DD". */
+/* DATE volta como Date do driver, e os dois drivers ancoram em fusos
+ * diferentes para o mesmo valor:
+ *
+ *   PGlite (desenvolvimento) -> 2026-09-22T00:00:00Z  (meia-noite UTC)
+ *   pg     (produção)        -> 2026-09-22T03:00:00Z  (meia-noite local, -03)
+ *
+ * Ler sempre com getters locais acertava em produção e errava um dia para trás
+ * em desenvolvimento no Brasil; ler sempre em UTC inverteria o erro para quem
+ * está em fuso positivo. A âncora revela a origem: instante exatamente em
+ * meia-noite UTC só acontece quando o driver ancorou em UTC, e aí os getters
+ * corretos são os de UTC. Nos demais casos o valor é meia-noite local.
+ */
 function date(v: unknown): string {
   if (v == null) return "";
   if (v instanceof Date) {
-    const y = v.getFullYear();
-    const m = String(v.getMonth() + 1).padStart(2, "0");
-    const d = String(v.getDate()).padStart(2, "0");
+    const ancoradoEmUtc =
+      v.getUTCHours() === 0 &&
+      v.getUTCMinutes() === 0 &&
+      v.getUTCSeconds() === 0 &&
+      v.getUTCMilliseconds() === 0;
+    const y = ancoradoEmUtc ? v.getUTCFullYear() : v.getFullYear();
+    const m = String((ancoradoEmUtc ? v.getUTCMonth() : v.getMonth()) + 1).padStart(2, "0");
+    const d = String(ancoradoEmUtc ? v.getUTCDate() : v.getDate()).padStart(2, "0");
     return `${y}-${m}-${d}`;
   }
   return String(v).slice(0, 10);
@@ -139,10 +156,27 @@ const toPhoto = (r: R): ProgressPhoto => ({
   createdAt: stamp(r.created_at),
 });
 
+/* Aceita booleano e número. Base criada antes das metas guarda os hábitos como
+   sim/não; ali o antigo `true` significa "cumpriu". Sem esta tolerância, um
+   banco ainda não migrado devolveria NaN e a tela inteira ficaria neutra. */
+const habitStatus = (v: unknown): HabitStatus => {
+  if (v === true) return 1;
+  if (v === false || v === null || v === undefined) return 0;
+  const n = Number(v);
+  return n === 1 || n === 2 ? n : 0;
+};
+
 const toHabit = (r: R): HabitLog => ({
   id: s(r.id), studentId: s(r.student_id), date: date(r.date),
-  water: b(r.water), nutrition: b(r.nutrition), sleep: b(r.sleep),
-  steps: b(r.steps), supplement: b(r.supplement), notes: s(r.notes),
+  water: habitStatus(r.water), nutrition: habitStatus(r.nutrition),
+  sleep: habitStatus(r.sleep), steps: habitStatus(r.steps),
+  supplement: habitStatus(r.supplement), notes: s(r.notes),
+});
+
+const toHabitTarget = (r: R): HabitTarget => ({
+  id: s(r.id), studentId: s(r.student_id), professionalId: s(r.professional_id),
+  waterMl: Number(r.water_ml ?? 0), nutrition: s(r.nutrition),
+  supplement: s(r.supplement), updatedAt: date(r.updated_at),
 });
 
 const toAttendance = (r: R): Attendance => ({
@@ -199,8 +233,8 @@ export async function loadProfessionalData(professionalId: string): Promise<Data
 
   const [
     users, students, exercises, plans, workouts, workoutExercises,
-    sessions, sets, checkins, assessments, photos, habits, attendance,
-    anamnesis, notifications,
+    sessions, sets, checkins, assessments, photos, habits, habitTargets,
+    attendance, anamnesis, notifications,
   ] = await Promise.all([
     sql("SELECT * FROM users WHERE id = $1 OR professional_id = $1", P),
     sql("SELECT * FROM students WHERE professional_id = $1", P),
@@ -228,6 +262,9 @@ export async function loadProfessionalData(professionalId: string): Promise<Data
     sql(`SELECT h.* FROM habit_logs h
            JOIN students st ON st.id = h.student_id
           WHERE st.professional_id = $1`, P),
+    sql(`SELECT t.* FROM habit_targets t
+           JOIN students st ON st.id = t.student_id
+          WHERE st.professional_id = $1`, P),
     sql("SELECT * FROM attendance WHERE professional_id = $1", P),
     sql("SELECT * FROM anamnesis WHERE professional_id = $1", P),
     sql(`SELECT nt.* FROM notifications nt
@@ -249,6 +286,7 @@ export async function loadProfessionalData(professionalId: string): Promise<Data
     assessments: assessments.map(toAssessment),
     progressPhotos: photos.map(toPhoto),
     habitLogs: habits.map(toHabit),
+    habitTargets: habitTargets.map(toHabitTarget),
     attendance: attendance.map(toAttendance),
     anamnesis: anamnesis.map(toAnamnesis),
     notifications: notifications.map(toNotification),

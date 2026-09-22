@@ -142,17 +142,57 @@ CREATE TABLE IF NOT EXISTS progress_photos (
   UNIQUE (student_id, month, angle)
 );
 
+/* Hábitos do dia. Cada coluna tem três estados, não dois:
+     0 = o aluno ainda não respondeu
+     1 = cumpriu a meta
+     2 = não cumpriu
+   A diferença entre 0 e 2 importa: "não respondi" não pode contar como falha
+   no cálculo de consistência, senão todo dia futuro nasce reprovado. */
 CREATE TABLE IF NOT EXISTS habit_logs (
   id         TEXT PRIMARY KEY,
   student_id TEXT NOT NULL REFERENCES students(id) ON DELETE CASCADE,
   date       DATE NOT NULL,
-  water      BOOLEAN NOT NULL DEFAULT FALSE,
-  nutrition  BOOLEAN NOT NULL DEFAULT FALSE,
-  sleep      BOOLEAN NOT NULL DEFAULT FALSE,
-  steps      BOOLEAN NOT NULL DEFAULT FALSE,
-  supplement BOOLEAN NOT NULL DEFAULT FALSE,
+  water      SMALLINT NOT NULL DEFAULT 0,
+  nutrition  SMALLINT NOT NULL DEFAULT 0,
+  sleep      SMALLINT NOT NULL DEFAULT 0,
+  steps      SMALLINT NOT NULL DEFAULT 0,
+  supplement SMALLINT NOT NULL DEFAULT 0,
   notes      TEXT NOT NULL DEFAULT '',
   UNIQUE (student_id, date)
+);
+
+/* Bases criadas antes desta mudança têm as colunas como BOOLEAN. Converte no
+   lugar, preservando o histórico: o que estava marcado vira "cumpriu". O bloco
+   é idempotente — em base nova ou já convertida não faz nada. */
+DO $$
+DECLARE coluna TEXT;
+BEGIN
+  FOREACH coluna IN ARRAY ARRAY['water', 'nutrition', 'sleep', 'steps', 'supplement'] LOOP
+    IF EXISTS (
+      SELECT 1 FROM information_schema.columns
+       WHERE table_name = 'habit_logs' AND column_name = coluna AND data_type = 'boolean'
+    ) THEN
+      EXECUTE format(
+        'ALTER TABLE habit_logs
+           ALTER COLUMN %I DROP DEFAULT,
+           ALTER COLUMN %I TYPE SMALLINT USING (CASE WHEN %I THEN 1 ELSE 0 END),
+           ALTER COLUMN %I SET DEFAULT 0',
+        coluna, coluna, coluna, coluna);
+    END IF;
+  END LOOP;
+END $$;
+
+/* Metas que o personal define para cada aluno. Uma linha por aluno: são
+   orientações vigentes, não histórico. */
+CREATE TABLE IF NOT EXISTS habit_targets (
+  id              TEXT PRIMARY KEY,
+  student_id      TEXT NOT NULL UNIQUE REFERENCES students(id) ON DELETE CASCADE,
+  professional_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  -- em mililitros: inteiro evita o arredondamento de 3,5 L virar 3,4999
+  water_ml        INTEGER NOT NULL DEFAULT 0,
+  nutrition       TEXT NOT NULL DEFAULT '',
+  supplement      TEXT NOT NULL DEFAULT '',
+  updated_at      DATE
 );
 
 CREATE TABLE IF NOT EXISTS attendance (
@@ -202,3 +242,4 @@ CREATE INDEX IF NOT EXISTS idx_habits_student_date ON habit_logs(student_id, dat
 CREATE INDEX IF NOT EXISTS idx_attendance_professional_date ON attendance(professional_id, date);
 CREATE INDEX IF NOT EXISTS idx_attendance_student_date ON attendance(student_id, date);
 CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_habit_targets_professional ON habit_targets(professional_id);

@@ -31,7 +31,7 @@ const currentProfessionalId = cache(async (): Promise<string | null> => {
 const VAZIO: Database = {
   version: 2, users: [], students: [], exercises: [], trainingPlans: [], workouts: [],
   workoutExercises: [], workoutSessions: [], workoutSets: [], checkins: [], assessments: [],
-  progressPhotos: [], habitLogs: [], attendance: [], anamnesis: [], notifications: [],
+  progressPhotos: [], habitLogs: [], habitTargets: [], attendance: [], anamnesis: [], notifications: [],
 };
 
 export const getDb = cache(async (): Promise<Database> => {

@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import type {
   Anamnesis, Assessment, Attendance, Checkin, Database, Exercise, HabitLog,
+  HabitStatus, HabitTarget,
   Modality, Notification, Student, TrainingPlan, User, Workout, WorkoutExercise,
   WorkoutSession, WorkoutSet,
 } from "./types";
@@ -144,6 +145,7 @@ export function buildSeed(): Database {
   const checkins: Checkin[] = [];
   const assessments: Assessment[] = [];
   const habitLogs: HabitLog[] = [];
+  const habitTargets: HabitTarget[] = [];
   const attendance: Attendance[] = [];
   const anamnesis: Anamnesis[] = [];
   const notifications: Notification[] = [];
@@ -309,14 +311,27 @@ export function buildSeed(): Database {
       });
     });
 
+    // Três estados: cumpriu (1), não cumpriu (2) e sem resposta (0). Uma fatia
+    // fica sem resposta de propósito — é o caso real de quem esquece de marcar,
+    // e é o que deixa a tela de consistência honesta na demonstração.
+    const estado = (p: number): HabitStatus => (rnd() < 0.12 ? 0 : rnd() < p ? 1 : 2);
     for (let d = 20; d >= 0; d--) {
       habitLogs.push({
         id: sid("hab"), studentId, date: addDays(today, -d),
-        water: rnd() < 0.8, nutrition: rnd() < s.adherence,
-        sleep: rnd() < 0.7, steps: rnd() < 0.65,
-        supplement: rnd() < 0.5, notes: "",
+        water: estado(0.8), nutrition: estado(s.adherence),
+        sleep: estado(0.7), steps: estado(0.65),
+        supplement: estado(0.5), notes: "",
       });
     }
+
+    // Metas de exemplo, para a tela do aluno nascer com algo para cumprir.
+    habitTargets.push({
+      id: sid("hbt"), studentId, professionalId: PRO_ID,
+      waterMl: 3000,
+      nutrition: "4 refeições, proteína em todas. Evitar ultraprocessados durante a semana.",
+      supplement: "Whey pós-treino e creatina 5 g por dia, no horário que preferir.",
+      updatedAt: addDays(today, -7),
+    });
 
     // Alunos consistentes já registraram a foto do mês corrente; os demais não,
     // para o alerta de "foto mensal pendente" continuar visível na demonstração.
@@ -350,6 +365,7 @@ export function buildSeed(): Database {
     version: 1, users, students, exercises, trainingPlans, workouts,
     workoutExercises, workoutSessions, workoutSets, checkins, assessments,
     progressPhotos: seedProgressPhotos(photoInputs),
+    habitTargets,
     habitLogs, attendance, anamnesis, notifications,
   };
 }

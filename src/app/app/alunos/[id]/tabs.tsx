@@ -13,6 +13,7 @@ import {
 import { WeekdayPicker } from "@/components/weekday-picker";
 import { PhotoCompare } from "@/components/photo-compare";
 import { AnamnesisForm } from "./anamnesis-form";
+import { HabitTargetsForm } from "./habit-targets-form";
 import {
   addDays, addMonths, currentMonth, formatDate, formatMonthLong, formatShortDate,
   todayISO, WEEKDAY_LABELS,
@@ -485,8 +486,33 @@ export async function HabitsTab({ view }: { view: StudentView }) {
   const logs = new Map(
     db.habitLogs.filter((h) => h.studentId === view.student.id).map((h) => [h.date, h]),
   );
+  const target = db.habitTargets.find((t) => t.studentId === view.student.id);
+  // 3500 ml vira "3,5" no campo; 0 vira vazio, para não parecer meta definida.
+  const litros = target && target.waterMl > 0 ? String(target.waterMl / 1000).replace(".", ",") : "";
 
   return (
+    <div className="space-y-4">
+    <Card>
+      <SectionTitle
+        action={
+          <span className="text-xs text-ink-500">
+            {target?.updatedAt ? `Atualizadas em ${formatDate(target.updatedAt)}` : "Sem metas definidas"}
+          </span>
+        }
+      >
+        Metas do aluno
+      </SectionTitle>
+      <p className="-mt-1 mb-4 text-xs text-ink-500">
+        O aluno vê este texto na aba de hábitos e marca, dia a dia, se cumpriu ou não.
+      </p>
+      <HabitTargetsForm
+        studentId={view.student.id}
+        waterLiters={litros}
+        nutrition={target?.nutrition ?? ""}
+        supplement={target?.supplement ?? ""}
+      />
+    </Card>
+
     <Card padded={false}>
       <div className="p-5">
         <SectionTitle>Hábitos - últimos 14 dias</SectionTitle>
@@ -507,32 +533,48 @@ export async function HabitsTab({ view }: { view: StudentView }) {
           </thead>
           <tbody>
             {rows.map(([label, key]) => {
-              const hits = days.filter((d) => logs.get(d)?.[key]).length;
+              // A porcentagem é sobre os dias que o aluno respondeu, não sobre
+              // os 14: dia em branco não é falha dele, e tratar como falha
+              // esconde quem cumpre bem mas esquece de marcar.
+              const respondidos = days.filter((d) => (logs.get(d)?.[key] ?? 0) !== 0);
+              const cumpridos = respondidos.filter((d) => logs.get(d)?.[key] === 1).length;
               return (
                 <tr key={key} className="border-t border-ink-850">
                   <td className="py-2.5 pr-3 font-semibold text-ink-200">{label}</td>
-                  {days.map((d) => (
-                    <td key={d} className="py-2.5 text-center">
-                      <span
-                        className={
-                          logs.get(d)?.[key]
-                            ? "inline-block size-3.5 rounded-[5px] bg-lime-accent"
-                            : "inline-block size-3.5 rounded-[5px] bg-ink-800"
-                        }
-                        title={`${label} em ${formatShortDate(d)}: ${logs.get(d)?.[key] ? "sim" : "nao"}`}
-                      />
-                    </td>
-                  ))}
+                  {days.map((d) => {
+                    const estado = logs.get(d)?.[key] ?? 0;
+                    const cor =
+                      estado === 1 ? "bg-lime-accent" : estado === 2 ? "bg-danger" : "bg-ink-800";
+                    const leitura =
+                      estado === 1 ? "cumpriu" : estado === 2 ? "não cumpriu" : "sem resposta";
+                    return (
+                      <td key={d} className="py-2.5 text-center">
+                        <span
+                          className={`inline-block size-3.5 rounded-[5px] ${cor}`}
+                          title={`${label} em ${formatShortDate(d)}: ${leitura}`}
+                        />
+                      </td>
+                    );
+                  })}
                   <td className="py-2.5 text-right tabular-nums text-ink-300">
-                    {Math.round((hits / days.length) * 100)}%
+                    {respondidos.length
+                      ? `${Math.round((cumpridos / respondidos.length) * 100)}%`
+                      : "—"}
                   </td>
                 </tr>
               );
             })}
           </tbody>
         </table>
+        <p className="mt-3 text-[11px] text-ink-500">
+          <span className="mr-1 inline-block size-2.5 rounded bg-lime-accent align-middle" /> cumpriu
+          <span className="ml-3 mr-1 inline-block size-2.5 rounded bg-danger align-middle" /> não cumpriu
+          <span className="ml-3 mr-1 inline-block size-2.5 rounded bg-ink-800 align-middle" /> sem resposta
+          <span className="ml-3">A porcentagem considera só os dias respondidos.</span>
+        </p>
       </div>
     </Card>
+    </div>
   );
 }
 

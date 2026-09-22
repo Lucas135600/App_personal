@@ -240,6 +240,43 @@ export async function markAttendanceAction(formData: FormData) {
 
 /* --------------------------------------------------------------- anamnese */
 
+/* ---------------------------------------------------------- metas de hábito */
+
+export interface HabitTargetsState {
+  ok?: string;
+  error?: string;
+}
+
+export async function saveHabitTargetsAction(
+  _prev: HabitTargetsState,
+  formData: FormData,
+): Promise<HabitTargetsState> {
+  const pro = await requirePersonal();
+  const studentId = str(formData.get("studentId"));
+  await assertOwnStudent(pro.id, studentId);
+
+  // O personal digita em litros porque é como se fala; o banco guarda em
+  // mililitros para não acumular erro de arredondamento.
+  const litros = num(formData.get("waterLiters"));
+  if (litros !== null && (litros < 0 || litros > 20)) {
+    return { error: "Meta de água fora do razoável. Use um valor entre 0 e 20 litros." };
+  }
+
+  try {
+    await repo.saveHabitTargets(studentId, pro.id, {
+      waterMl: litros === null ? 0 : Math.round(litros * 1000),
+      nutrition: str(formData.get("nutrition")),
+      supplement: str(formData.get("supplement")),
+    });
+    revalidatePath(`/app/alunos/${studentId}`);
+    revalidatePath("/aluno/habitos");
+    return { ok: "Metas salvas. O aluno já vê na aba de hábitos." };
+  } catch (e) {
+    console.error("saveHabitTargetsAction", e);
+    return { error: "Não foi possível salvar agora. Tente de novo em instantes." };
+  }
+}
+
 export interface AnamnesisState {
   ok?: string;
   error?: string;

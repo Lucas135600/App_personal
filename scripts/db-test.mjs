@@ -48,15 +48,37 @@ let r = await q(`SELECT count(*)::int n, bool_or(present) p FROM attendance
 ok(r[0].n === 1, `3 marcações, 1 linha (n=${r[0].n})`);
 ok(r[0].p === true, "o último valor prevalece");
 
-console.log("\n— hábito: alterna e não duplica");
-for (let i = 0; i < 3; i++) {
-  await q(`INSERT INTO habit_logs (id,student_id,date,water) VALUES ($1,'s1','2026-09-22',TRUE)
-           ON CONFLICT (student_id,date) DO UPDATE SET water = NOT habit_logs.water`, [`h${i}`]);
+console.log("\n— hábito: cicla entre três estados e não duplica");
+const toque = (i) =>
+  q(`INSERT INTO habit_logs (id,student_id,date,water) VALUES ($1,'s1','2026-09-22',1)
+     ON CONFLICT (student_id,date) DO UPDATE
+        SET water = CASE habit_logs.water WHEN 1 THEN 2 WHEN 2 THEN 0 ELSE 1 END`, [`h${i}`]);
+const estadoAgua = async () =>
+  (await q(`SELECT water FROM habit_logs WHERE student_id='s1' AND date='2026-09-22'`))[0].water;
+
+await toque(0);
+ok((await estadoAgua()) === 1, "1º toque = cumpriu");
+await toque(1);
+ok((await estadoAgua()) === 2, "2º toque = não cumpriu");
+await toque(2);
+ok((await estadoAgua()) === 0, "3º toque volta ao neutro");
+await toque(3);
+ok((await estadoAgua()) === 1, "4º toque recomeça o ciclo");
+
+r = await q(`SELECT count(*)::int n FROM habit_logs WHERE student_id='s1' AND date='2026-09-22'`);
+ok(r[0].n === 1, `4 toques, 1 linha (n=${r[0].n})`);
+
+console.log("\n— meta de hábito: uma por aluno, a segunda atualiza a primeira");
+for (const [ml, nota] of [[3000, "primeira"], [3500, "revisada"]]) {
+  await q(`INSERT INTO habit_targets (id,student_id,professional_id,water_ml,nutrition,supplement,updated_at)
+           VALUES ($1,'s1','pro',$2,$3,'','2026-09-22')
+           ON CONFLICT (student_id) DO UPDATE
+              SET water_ml = EXCLUDED.water_ml, nutrition = EXCLUDED.nutrition`,
+    [`hbt_${ml}`, ml, nota]);
 }
-r = await q(`SELECT count(*)::int n, bool_and(water) w FROM habit_logs
-             WHERE student_id='s1' AND date='2026-09-22'`);
-ok(r[0].n === 1, `3 toques, 1 linha (n=${r[0].n})`);
-ok(r[0].w === true, "liga, desliga, liga");
+r = await q("SELECT count(*)::int n, max(water_ml)::int ml, max(nutrition) nt FROM habit_targets WHERE student_id='s1'");
+ok(r[0].n === 1, `2 gravações, 1 linha (n=${r[0].n})`);
+ok(r[0].ml === 3500 && r[0].nt === "revisada", "a meta mais recente prevalece");
 
 console.log("\n— check-in: uma resposta por semana, garantido pelo banco");
 await q(`INSERT INTO checkins (id,student_id,professional_id,week_start,status)
