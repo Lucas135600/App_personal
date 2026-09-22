@@ -3,13 +3,13 @@ import "./globals.css";
 import { ServiceWorkerRegistrar } from "@/components/pwa";
 
 export const metadata: Metadata = {
-  title: "LB Personal Trainner",
-  description: "Assessoria, treino e evolução em um só lugar - Lucas Braz Personal",
-  applicationName: "LB Personal Trainner",
+  title: "Vision Fitness",
+  description: "Assessoria, treino e evolução em um só lugar.",
+  applicationName: "Vision Fitness",
   manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,
-    title: "LB Personal",
+    title: "Vision Fitness",
     statusBarStyle: "black-translucent",
   },
   icons: {

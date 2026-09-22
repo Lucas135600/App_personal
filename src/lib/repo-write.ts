@@ -62,7 +62,7 @@ export async function insertStudent(professionalId: string, a: NovoAluno): Promi
     await q(
       `INSERT INTO notifications (id, user_id, title, body, link, read, created_at)
        VALUES ($1, $2, $3, $4, $5, FALSE, $6)`,
-      [id("ntf"), userId, "Bem-vindo à LB Personal Trainner",
+      [id("ntf"), userId, "Bem-vindo à Vision Fitness",
        "Comece respondendo sua anamnese para o Lucas montar seu treino.", "/aluno/anamnese", hoje],
     );
   });

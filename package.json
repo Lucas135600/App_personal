@@ -1,8 +1,8 @@
 {
-  "name": "lb-personal-trainner",
+  "name": "vision-fitness",
   "version": "0.1.0",
   "private": true,
-  "description": "LB Personal Trainner - plataforma de assessoria, treino e evolucao",
+  "description": "Vision Fitness - plataforma de assessoria, treino e evolucao",
   "scripts": {
     "dev": "next dev -H 0.0.0.0 -p 3000",
     "build": "next build",

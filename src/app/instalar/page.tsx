@@ -4,8 +4,8 @@ import { Logo } from "@/components/logo";
 import { Card, LinkButton } from "@/components/ui";
 
 export const metadata: Metadata = {
-  title: "Instalar o app — LB Personal Trainner",
-  description: "Coloque o LB Personal Trainner na tela inicial do seu celular.",
+  title: "Instalar o app — Vision Fitness",
+  description: "Coloque o Vision Fitness na tela inicial do seu celular.",
 };
 
 const ANDROID = [

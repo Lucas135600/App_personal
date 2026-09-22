@@ -92,7 +92,7 @@ if (URL_SB && KEY) {
 
         // ida e volta de verdade: grava, lê e apaga
         const nome = `verificacao-${Date.now()}.txt`;
-        const corpo = "teste de escrita do LB Personal Trainner";
+        const corpo = "teste de escrita do Vision Fitness";
         const up = await fetch(`${base}/object/${BUCKET}/${nome}`, {
           method: "POST",
           headers: { ...auth, "Content-Type": "text/plain", "x-upsert": "true" },

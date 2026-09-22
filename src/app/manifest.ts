@@ -2,8 +2,8 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "LB Personal Trainner",
-    short_name: "LB Personal",
+    name: "Vision Fitness",
+    short_name: "Vision",
     description: "Seu treino, seu acompanhamento e sua evolução em um só lugar.",
     lang: "pt-BR",
     start_url: "/",

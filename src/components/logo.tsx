@@ -78,7 +78,7 @@ export function Logo({
             size === "lg" ? "text-2xl" : size === "md" ? "text-lg" : "text-base",
           )}
         >
-          LB PERSONAL
+          VISION
         </p>
         <p
           className={cx(
@@ -86,7 +86,7 @@ export function Logo({
             size === "lg" ? "text-[11px]" : "text-[9px]",
           )}
         >
-          Trainner
+          Fitness
         </p>
       </div>
     </div>
