@@ -1,18 +1,16 @@
-import fs from "node:fs";
-import path from "node:path";
-import { DATA_DIR } from "./paths";
+import { schemaSql } from "./schema-file";
 
 /* Uma única porta de entrada para o banco.
  *
  * Em produção (DATABASE_URL definida) usa Postgres de verdade via `pg`.
  * Em desenvolvimento, sem nenhuma conta ou instalação, usa PGlite — o próprio
- * Postgres compilado em WASM, gravando em data/pg. O SQL é o mesmo nos dois,
- * então o que passa aqui passa lá.
+ * Postgres compilado em WASM. O SQL é o mesmo nos dois, então o que passa
+ * aqui passa lá.
  */
 
 export type Row = Record<string, unknown>;
 
-interface Driver {
+export interface Driver {
   query<T extends Row>(text: string, params?: unknown[]): Promise<T[]>;
   transaction<T>(fn: (q: Querier) => Promise<T>): Promise<T>;
   kind: "postgres" | "pglite";
@@ -23,10 +21,6 @@ export interface Querier {
 }
 
 const globalStore = globalThis as unknown as { __lbsql?: Promise<Driver> };
-
-function schemaSql(): string {
-  return fs.readFileSync(path.join(process.cwd(), "src", "lib", "schema.sql"), "utf8");
-}
 
 async function createPostgres(url: string): Promise<Driver> {
   const { Pool } = await import("pg");
@@ -64,43 +58,23 @@ async function createPostgres(url: string): Promise<Driver> {
   };
 }
 
-async function createPglite(): Promise<Driver> {
-  const { PGlite } = await import("@electric-sql/pglite");
-  fs.mkdirSync(DATA_DIR, { recursive: true });
-  const db = new PGlite(path.join(DATA_DIR, "pg"));
-  await db.waitReady;
-  await db.exec(schemaSql());
+async function connect(): Promise<Driver> {
+  const url = process.env.DATABASE_URL;
+  if (url) return createPostgres(url);
 
-  const driver: Driver = {
-    kind: "pglite",
-    async query<T extends Row>(text: string, params?: unknown[]) {
-      const res = await db.query(text, params);
-      return res.rows as T[];
-    },
-    async transaction<T>(fn: (q: Querier) => Promise<T>) {
-      return db.transaction(async (tx) => {
-        const q: Querier = async <U extends Row>(text: string, params?: unknown[]) => {
-          const res = await tx.query(text, params);
-          return res.rows as U[];
-        };
-        return fn(q);
-      }) as Promise<T>;
-    },
-  };
-
-  // Base nova em desenvolvimento nasce com os dados de demonstração.
-  const [{ count }] = await driver.query<{ count: string }>("SELECT count(*) FROM users");
-  if (Number(count) === 0) {
-    const { seedDatabase } = await import("./seed-sql");
-    await seedDatabase(driver.query.bind(driver));
+  // O `if` abaixo é resolvido na hora do build: em produção a comparação é
+  // falsa e o ramo inteiro é descartado, levando junto o PGlite e o módulo de
+  // dados de demonstração — que carrega senhas literais e não tem o que fazer
+  // num servidor público. O que sobra lá é o erro, que é o comportamento certo:
+  // sem banco configurado o app não deve subir fingindo que está inteiro.
+  if (process.env.NODE_ENV !== "production") {
+    const { createPglite } = await import("./sql-dev");
+    return createPglite();
   }
 
-  return driver;
-}
-
-function connect(): Promise<Driver> {
-  const url = process.env.DATABASE_URL;
-  return url ? createPostgres(url) : createPglite();
+  throw new Error(
+    "DATABASE_URL ausente. Em produção o banco é obrigatório — defina a variável na hospedagem.",
+  );
 }
 
 function driver(): Promise<Driver> {
