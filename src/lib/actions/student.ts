@@ -6,6 +6,7 @@ import { putPhoto } from "@/lib/storage";
 import { requireStudent } from "@/lib/auth";
 import * as repo from "@/lib/repo-write";
 import { currentMonth, currentWeekStart, todayISO } from "@/lib/dates";
+import { faltandoObrigatorios, rotuloCurto } from "@/lib/anamnesis";
 import type { PhotoAngle } from "@/lib/types";
 
 interface LoggedSet {
@@ -146,6 +147,8 @@ export async function uploadProgressPhotoAction(formData: FormData) {
 export interface AnamnesisState {
   ok?: string;
   error?: string;
+  /** Chaves obrigatórias que vieram vazias, para a tela levar o aluno até elas. */
+  faltando?: string[];
 }
 
 export async function saveStudentAnamnesisAction(
@@ -163,6 +166,23 @@ export async function saveStudentAnamnesisAction(
     // são resposta de ninguém e não têm o que fazer dentro da anamnese.
     if (k.startsWith("$")) continue;
     answers[k] = String(v);
+  }
+
+  /* A obrigatoriedade é conferida aqui, no servidor, e não pelo `required` do
+     HTML. O assistente mantém as etapas ocultas dentro do mesmo formulário, e
+     o navegador se recusa a validar um campo que não consegue rolar até a
+     tela: ele cancelaria o envio em silêncio, que é exatamente o problema que
+     esta tela acabou de deixar de ter. */
+  const faltando = faltandoObrigatorios(answers);
+  if (faltando.length > 0) {
+    const nomes = faltando.map(rotuloCurto).join(", ");
+    return {
+      faltando,
+      error:
+        faltando.length === 1
+          ? `Falta responder: ${nomes}. Sem isso não dá para montar um treino seguro.`
+          : `Faltam ${faltando.length} respostas obrigatórias: ${nomes}.`,
+    };
   }
 
   try {

@@ -38,7 +38,7 @@ export function AnamnesisForm({
           <div className="grid gap-3 sm:grid-cols-2">
             {step.fields.map((f) => (
               <div key={f.key} className={f.type === "textarea" ? "sm:col-span-2" : ""}>
-                <Field label={f.label}>
+                <Field label={f.required ? `${f.label} *` : f.label}>
                   {f.type === "textarea" ? (
                     <Textarea name={f.key} defaultValue={answers[f.key] ?? ""} />
                   ) : f.type === "select" ? (
@@ -56,10 +56,17 @@ export function AnamnesisForm({
         </fieldset>
       ))}
 
+      <p className="text-[11px] text-ink-500">
+        * Obrigatório para o aluno. Você pode salvar sem preencher — é aviso, não trava.
+      </p>
+
       {state.error && (
         <p className="rounded-xl bg-danger/10 px-3 py-2 text-sm text-danger">{state.error}</p>
       )}
       {state.ok && <p className="rounded-xl bg-ok/10 px-3 py-2 text-sm text-ok">{state.ok}</p>}
+      {state.aviso && (
+        <p className="rounded-xl bg-warn/10 px-3 py-2 text-sm text-warn">{state.aviso}</p>
+      )}
 
       <SubmitButton />
     </form>

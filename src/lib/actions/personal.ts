@@ -7,6 +7,7 @@ import { assertOwnStudent, requirePersonal } from "@/lib/auth";
 import * as repo from "@/lib/repo-write";
 import { findUserById } from "@/lib/repo";
 import { addDays, todayISO } from "@/lib/dates";
+import { faltandoObrigatorios, rotuloCurto } from "@/lib/anamnesis";
 import type { Modality, StudentStatus } from "@/lib/types";
 
 const COLORS = ["#4ade80", "#f472b6", "#fb923c", "#38bdf8", "#a78bfa", "#fbbf24", "#2dd4bf", "#f9a8d4"];
@@ -280,6 +281,8 @@ export async function saveHabitTargetsAction(
 export interface AnamnesisState {
   ok?: string;
   error?: string;
+  /** Obrigatórios ainda vazios. Avisa, mas não impede o personal de salvar. */
+  aviso?: string;
 }
 
 export async function saveAnamnesisAction(
@@ -302,7 +305,17 @@ export async function saveAnamnesisAction(
   try {
     await repo.saveAnamnesis(studentId, pro.id, answers);
     revalidatePath(`/app/alunos/${studentId}`);
-    return { ok: "Anamnese salva." };
+
+    /* Do lado do aluno o campo obrigatório vazio barra o envio. Aqui não:
+       travar o personal por uma pergunta que o aluno não respondeu seria
+       impedi-lo de anotar o que acabou de ouvir em consulta. Avisa e salva. */
+    const faltando = faltandoObrigatorios(answers);
+    return faltando.length === 0
+      ? { ok: "Anamnese salva." }
+      : {
+          ok: "Anamnese salva.",
+          aviso: `Ainda falta preencher: ${faltando.map(rotuloCurto).join(", ")}.`,
+        };
   } catch (e) {
     console.error("saveAnamnesisAction", e);
     return { error: "Não foi possível salvar agora. Tente de novo em instantes." };

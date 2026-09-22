@@ -47,14 +47,19 @@ export const ANAMNESIS_STEPS: AnamnesisStep[] = [
     title: "Saúde",
     description: "Informações essenciais para a segurança do seu treino.",
     fields: [
-      { key: "lesoes", label: "Lesões atuais ou anteriores", type: "textarea" },
-      { key: "dores", label: "Sente alguma dor hoje?", type: "textarea" },
+      /* Estes cinco são obrigatórios porque é com eles que se decide o que o
+         aluno pode fazer sem se machucar. "Nenhuma" é resposta válida e
+         suficiente — o que não serve é o campo em branco, que não diz se não
+         há nada ou se a pergunta foi pulada. */
+      { key: "lesoes", label: "Lesões atuais ou anteriores", type: "textarea", required: true },
+      { key: "dores", label: "Sente alguma dor hoje?", type: "textarea", required: true },
       { key: "cirurgias", label: "Cirurgias", type: "textarea" },
-      { key: "medicamentos", label: "Medicamentos de uso contínuo", type: "textarea" },
-      { key: "doencas", label: "Doenças diagnosticadas", type: "textarea" },
+      { key: "medicamentos", label: "Medicamentos de uso contínuo", type: "textarea", required: true },
+      { key: "doencas", label: "Doenças diagnosticadas", type: "textarea", required: true },
       {
         key: "parq", label: "PAR-Q: algum médico já disse que você só deveria fazer atividade física sob supervisão?",
-        type: "select", options: ["Todas as respostas NÃO", "Sim, há alguma restrição médica"],
+        type: "select", required: true,
+        options: ["Todas as respostas NÃO", "Sim, há alguma restrição médica"],
       },
       { key: "atestado", label: "Possui atestado ou liberação médica?", type: "select", options: ["Sim", "Não", "Em andamento"] },
     ],
@@ -87,3 +92,26 @@ export const ANAMNESIS_STEPS: AnamnesisStep[] = [
 ];
 
 export const ANAMNESIS_FIELDS = ANAMNESIS_STEPS.flatMap((s) => s.fields);
+
+/* Obrigatoriedade num único lugar, para o formulário do aluno, o do personal e
+ * a validação no servidor nunca discordarem sobre o que é exigido. */
+
+export const CAMPOS_OBRIGATORIOS = ANAMNESIS_FIELDS.filter((f) => f.required).map((f) => f.key);
+
+/** Chaves obrigatórias que vieram vazias. Lista vazia = pode salvar. */
+export function faltandoObrigatorios(answers: Record<string, string>): string[] {
+  return CAMPOS_OBRIGATORIOS.filter((k) => (answers[k] ?? "").trim() === "");
+}
+
+/** Rótulo curto para mostrar ao usuário qual campo ficou faltando. */
+export function rotuloCurto(key: string): string {
+  const f = ANAMNESIS_FIELDS.find((x) => x.key === key);
+  if (!f) return key;
+  // o PAR-Q tem rótulo longo demais para caber numa lista de pendências
+  return f.label.length > 42 ? `${f.label.slice(0, 40).trimEnd()}...` : f.label;
+}
+
+/** Índice da etapa que contém a chave, para levar o aluno até ela. */
+export function etapaDoCampo(key: string): number {
+  return ANAMNESIS_STEPS.findIndex((s) => s.fields.some((f) => f.key === key));
+}

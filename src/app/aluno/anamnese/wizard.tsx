@@ -1,8 +1,8 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useState } from "react";
 import { useFormStatus } from "react-dom";
-import { ANAMNESIS_STEPS } from "@/lib/anamnesis";
+import { ANAMNESIS_STEPS, etapaDoCampo } from "@/lib/anamnesis";
 import { saveStudentAnamnesisAction, type AnamnesisState } from "@/lib/actions/student";
 import { Button, Card, Field, Input, Select, Textarea, cx } from "@/components/ui";
 
@@ -30,6 +30,18 @@ export function AnamnesisWizard({
   );
   const total = ANAMNESIS_STEPS.length;
   const last = step === total - 1;
+  const faltando = state.faltando ?? [];
+
+  /* Quando o servidor recusa por campo obrigatório vazio, o aluno está na
+     última etapa e o campo que falta costuma estar duas etapas atrás — ou
+     seja, fora da tela. Sem levá-lo até lá, a mensagem de erro vira acusação
+     sem caminho. */
+  useEffect(() => {
+    if (faltando.length === 0) return;
+    const alvo = etapaDoCampo(faltando[0]);
+    if (alvo >= 0) setStep(alvo);
+    // depende do resultado da ação, que é um objeto novo a cada envio
+  }, [state]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <form action={formAction} className="space-y-4">
@@ -56,21 +68,38 @@ export function AnamnesisWizard({
             <p className="mt-1 text-sm text-ink-400">{s.description}</p>
 
             <div className="mt-5 space-y-4">
-              {s.fields.map((f) => (
-                <Field key={f.key} label={f.label}>
-                  {f.type === "textarea" ? (
-                    <Textarea name={f.key} defaultValue={answers[f.key] ?? ""} />
-                  ) : f.type === "select" ? (
-                    <Select name={f.key} defaultValue={answers[f.key] ?? ""}>
-                      <option value="">Selecione</option>
-                      {f.options?.map((o) => <option key={o}>{o}</option>)}
-                    </Select>
-                  ) : (
-                    <Input name={f.key} defaultValue={answers[f.key] ?? ""} />
-                  )}
-                </Field>
-              ))}
+              {s.fields.map((f) => {
+                const vazio = faltando.includes(f.key);
+                // borda vermelha só no que voltou do servidor como pendente:
+                // pintar de vermelho antes de o aluno errar seria ansiedade à toa
+                const erro = vazio ? "border-danger" : undefined;
+                return (
+                  <Field
+                    key={f.key}
+                    label={f.required ? `${f.label} *` : f.label}
+                    hint={vazio ? "Obrigatório. Se não houver nada, escreva “nenhuma”." : undefined}
+                  >
+                    {f.type === "textarea" ? (
+                      <Textarea name={f.key} defaultValue={answers[f.key] ?? ""} className={erro} />
+                    ) : f.type === "select" ? (
+                      <Select name={f.key} defaultValue={answers[f.key] ?? ""} className={erro}>
+                        <option value="">Selecione</option>
+                        {f.options?.map((o) => <option key={o}>{o}</option>)}
+                      </Select>
+                    ) : (
+                      <Input name={f.key} defaultValue={answers[f.key] ?? ""} className={erro} />
+                    )}
+                  </Field>
+                );
+              })}
             </div>
+
+            {s.fields.some((f) => f.required) && (
+              <p className="mt-4 text-[11px] text-ink-500">
+                * Obrigatório. Se não houver nada a declarar, escreva “nenhuma” — em
+                branco não diz se não há nada ou se a pergunta foi pulada.
+              </p>
+            )}
           </Card>
         </div>
       ))}
