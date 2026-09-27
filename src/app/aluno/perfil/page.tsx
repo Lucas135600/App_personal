@@ -3,7 +3,7 @@ import { requireStudent } from "@/lib/auth";
 import { getDb } from "@/lib/scope";
 import { buildStudentView } from "@/lib/queries";
 import { logoutAction } from "@/lib/actions/auth";
-import { toggleImageConsentAction } from "@/lib/actions/student";
+import { toggleImageConsentAction, togglePublicProfileAction } from "@/lib/actions/student";
 import { estadoConsentimento } from "@/lib/consent";
 import { formatDate, WEEKDAY_LABELS } from "@/lib/dates";
 import { Avatar, Badge, Button, Card, SectionTitle } from "@/components/ui";
@@ -89,6 +89,27 @@ export default async function StudentProfilePage() {
             ))}
           </ul>
         )}
+      </Card>
+
+      <Card>
+        <SectionTitle>Perfil nos desafios</SectionTitle>
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-sm text-ink-400">Visível para os outros alunos</p>
+          <Badge tone={student.publicProfile ? "ok" : "neutral"}>
+            {student.publicProfile ? "visível" : "oculto"}
+          </Badge>
+        </div>
+        <p className="mt-2 text-xs leading-relaxed text-ink-400">
+          {student.publicProfile
+            ? "Seu nome aparece para os outros alunos do Lucas quando eles vão montar um desafio. Só o nome — nenhum dado de treino, saúde ou foto."
+            : "Com o perfil oculto ninguém te encontra para convidar, e você também não vê quem está disponível. A regra é a mesma para todos: quem não se mostra não garimpa."}
+        </p>
+        <form action={togglePublicProfileAction} className="mt-3">
+          <input type="hidden" name="publico" value={student.publicProfile ? "nao" : "sim"} />
+          <Button type="submit" variant="outline" size="sm">
+            {student.publicProfile ? "Ocultar meu perfil" : "Tornar visível"}
+          </Button>
+        </form>
       </Card>
 
       <Card>

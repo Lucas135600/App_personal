@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import type {
-  Anamnesis, Assessment, Attendance, Checkin, Consent, Database, Exercise, HabitLog,
+  Anamnesis, Assessment, Attendance, Challenge, ChallengeEntry, ChallengeMember,
+  Checkin, Consent, Database, Exercise, HabitLog,
   HabitStatus, HabitTarget,
   Modality, Notification, Student, TrainingPlan, User, Workout, WorkoutExercise,
   WorkoutSession, WorkoutSet,
@@ -147,6 +148,9 @@ export function buildSeed(): Database {
   const habitLogs: HabitLog[] = [];
   const habitTargets: HabitTarget[] = [];
   const consents: Consent[] = [];
+  const challenges: Challenge[] = [];
+  const challengeMembers: ChallengeMember[] = [];
+  const challengeEntries: ChallengeEntry[] = [];
   const attendance: Attendance[] = [];
   const anamnesis: Anamnesis[] = [];
   const notifications: Notification[] = [];
@@ -181,6 +185,7 @@ export function buildSeed(): Database {
       id: studentId, userId, professionalId: PRO_ID, birthDate: s.birthDate,
       phone: s.phone, modality: s.modality, goal: s.goal, status: "ativo",
       startDate: addDays(today, -180), trainingDays: s.trainingDays, notes: s.notes,
+      publicProfile: true,
     });
     anamnesis.push({
       id: sid("anm"), studentId, professionalId: PRO_ID,
@@ -375,12 +380,57 @@ export function buildSeed(): Database {
     });
   }
 
+  /* Dois desafios de demonstração: um duelo em andamento e um grupo com
+     convite pendente, para a tela nascer mostrando os dois estados. */
+  if (students.length >= 4) {
+    const duelo = sid("chl");
+    challenges.push({
+      id: duelo, professionalId: PRO_ID, createdBy: students[0].id,
+      name: "Quem treina mais em outubro",
+      kind: "duelo", goal: "cardio_min", period: "diario", target: 30, requirePhoto: true,
+      startDate: addDays(today, -10), endDate: addDays(today, 18),
+      status: "ativo", createdAt: addDays(today, -10),
+    });
+    for (const st of [students[0], students[1]]) {
+      challengeMembers.push({
+        id: sid("clm"), challengeId: duelo, studentId: st.id,
+        status: "aceito", respondedAt: addDays(today, -10),
+      });
+    }
+
+    const grupo = sid("chl");
+    challenges.push({
+      id: grupo, professionalId: PRO_ID, createdBy: students[2].id,
+      name: "Semana dos hábitos",
+      kind: "grupo", goal: "habitos", period: "total", target: 0, requirePhoto: false,
+      startDate: addDays(today, -4), endDate: addDays(today, 3),
+      status: "ativo", createdAt: addDays(today, -4),
+    });
+    challengeMembers.push({
+      id: sid("clm"), challengeId: grupo, studentId: students[2].id,
+      status: "aceito", respondedAt: addDays(today, -4),
+    });
+    challengeMembers.push({
+      id: sid("clm"), challengeId: grupo, studentId: students[3].id,
+      status: "aceito", respondedAt: addDays(today, -3),
+    });
+    // O primeiro aluno fica com convite em aberto: é o estado que a tela
+    // precisa mostrar e que só aparece se alguém estiver nele.
+    challengeMembers.push({
+      id: sid("clm"), challengeId: grupo, studentId: students[0].id,
+      status: "convidado", respondedAt: null,
+    });
+  }
+
   return {
     version: 1, users, students, exercises, trainingPlans, workouts,
     workoutExercises, workoutSessions, workoutSets, checkins, assessments,
     progressPhotos: seedProgressPhotos(photoInputs),
     habitTargets,
     consents,
+    challenges,
+    challengeMembers,
+    challengeEntries,
     habitLogs, attendance, anamnesis, notifications,
   };
 }

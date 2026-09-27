@@ -182,6 +182,74 @@ BEGIN
   END LOOP;
 END $$;
 
+/* Desafios entre alunos. Duelo (1x1) ou grupo, sempre dentro do mesmo
+   profissional — um aluno nunca disputa com aluno de outro personal.
+
+   Dois tipos de meta convivem aqui, e a diferença define o resto do módulo:
+
+   - Automática (treinos, hábitos): o app já mede. Nada a registrar, nada a
+     validar, impossível de burlar esquecendo de postar.
+   - Manual (cardio, abdominais, corrida): só o aluno sabe. Ele registra, e o
+     desafio pode exigir foto como comprovação.
+
+   O placar nunca é guardado: sai da soma dos registros e dos treinos que já
+   existem. Um contador gravado viraria uma segunda verdade, que ficaria
+   errada em silêncio assim que um registro fosse corrigido ou apagado. */
+CREATE TABLE IF NOT EXISTS challenges (
+  id              TEXT PRIMARY KEY,
+  professional_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_by      TEXT NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+  name            TEXT NOT NULL,
+  kind            TEXT NOT NULL CHECK (kind IN ('duelo', 'grupo')),
+  goal            TEXT NOT NULL CHECK (goal IN
+                    ('treinos', 'habitos', 'cardio_min', 'abdominais', 'corrida_km')),
+  -- 'diario'/'semanal' contam períodos em que a meta foi batida;
+  -- 'total' soma tudo no intervalo e o maior número vence.
+  period          TEXT NOT NULL DEFAULT 'total' CHECK (period IN ('diario', 'semanal', 'total')),
+  -- meta por período; 0 quando o desafio é só somar
+  target          NUMERIC(8, 2) NOT NULL DEFAULT 0,
+  require_photo   BOOLEAN NOT NULL DEFAULT FALSE,
+  start_date      DATE NOT NULL,
+  end_date        DATE NOT NULL,
+  status          TEXT NOT NULL DEFAULT 'ativo' CHECK (status IN ('ativo', 'cancelado')),
+  created_at      DATE NOT NULL DEFAULT CURRENT_DATE,
+  CHECK (end_date >= start_date)
+);
+
+/* Quem foi convidado e o que respondeu. Recusar é uma resposta registrada,
+   não uma linha apagada: sem isso o convite reapareceria para sempre. */
+CREATE TABLE IF NOT EXISTS challenge_members (
+  id           TEXT PRIMARY KEY,
+  challenge_id TEXT NOT NULL REFERENCES challenges(id) ON DELETE CASCADE,
+  student_id   TEXT NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+  status       TEXT NOT NULL DEFAULT 'convidado'
+               CHECK (status IN ('convidado', 'aceito', 'recusado', 'saiu')),
+  responded_at DATE,
+  UNIQUE (challenge_id, student_id)
+);
+
+/* Registros das metas manuais. Um por aluno por dia: registrar de novo no
+   mesmo dia corrige o valor em vez de somar duas vezes, que é o que o aluno
+   espera quando percebe que digitou errado. */
+CREATE TABLE IF NOT EXISTS challenge_entries (
+  id              TEXT PRIMARY KEY,
+  challenge_id    TEXT NOT NULL REFERENCES challenges(id) ON DELETE CASCADE,
+  student_id      TEXT NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+  date            DATE NOT NULL,
+  value           NUMERIC(8, 2) NOT NULL DEFAULT 0,
+  -- chave no storage; visível para os participantes do desafio, e só
+  photo_file_name TEXT NOT NULL DEFAULT '',
+  note            TEXT NOT NULL DEFAULT '',
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (challenge_id, student_id, date)
+);
+
+/* Perfil visível para os outros alunos do mesmo personal. Desligado por
+   padrão: aparecer numa lista para estranhos tem que ser escolha, não
+   consequência de ter se cadastrado. Quem liga passa a ver e a ser visto —
+   simétrico de propósito, para ninguém garimpar sem se expor. */
+ALTER TABLE students ADD COLUMN IF NOT EXISTS public_profile BOOLEAN NOT NULL DEFAULT FALSE;
+
 /* Consentimentos, um registro por decisão — nunca sobrescreve.
    A LGPD exige poder provar QUANDO a pessoa consentiu e COM QUAL texto, e
    exige que ela possa revogar. Guardar só o estado atual perderia as duas
@@ -261,3 +329,7 @@ CREATE INDEX IF NOT EXISTS idx_attendance_student_date ON attendance(student_id,
 CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_habit_targets_professional ON habit_targets(professional_id);
 CREATE INDEX IF NOT EXISTS idx_consents_student ON consents(student_id, kind, decided_at DESC);
+CREATE INDEX IF NOT EXISTS idx_challenges_professional ON challenges(professional_id, status);
+CREATE INDEX IF NOT EXISTS idx_challenge_members_student ON challenge_members(student_id, status);
+CREATE INDEX IF NOT EXISTS idx_challenge_members_challenge ON challenge_members(challenge_id);
+CREATE INDEX IF NOT EXISTS idx_challenge_entries_challenge ON challenge_entries(challenge_id, date);

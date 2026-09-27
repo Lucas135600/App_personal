@@ -60,14 +60,14 @@ function VideoBlock({ item }: { item: RunnerItem }) {
         className="aspect-video w-full rounded-xl border border-ink-800"
         src={`https://www.youtube.com/embed/${youtube[1]}`}
         title={item.name}
-        allow="accelerometer; encrypted-média; picture-in-picture"
+        allow="accelerometer; encrypted-media; picture-in-picture"
         allowFullScreen
       />
     );
   }
 
   return (
-    // eslint-disable-next-line jsx-a11y/média-has-caption
+    // eslint-disable-next-line jsx-a11y/media-has-caption
     <video className="aspect-video w-full rounded-xl border border-ink-800" src={url} controls playsInline />
   );
 }

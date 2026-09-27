@@ -51,10 +51,10 @@ export async function seedDatabase(q: Querier): Promise<void> {
 
   await insertMany(
     q, "students",
-    ["id", "user_id", "professional_id", "birth_date", "phone", "modality", "goal", "status", "start_date", "training_days", "notes"],
+    ["id", "user_id", "professional_id", "birth_date", "phone", "modality", "goal", "status", "start_date", "training_days", "notes", "public_profile"],
     db.students.map((s) => [
       s.id, s.userId, s.professionalId, s.birthDate, s.phone, s.modality,
-      s.goal, s.status, s.startDate, s.trainingDays, s.notes,
+      s.goal, s.status, s.startDate, s.trainingDays, s.notes, s.publicProfile,
     ]),
     { training_days: "smallint[]" },
   );
@@ -155,6 +155,30 @@ export async function seedDatabase(q: Querier): Promise<void> {
     q, "consents",
     ["id", "student_id", "kind", "granted", "version", "decided_at"],
     db.consents.map((c) => [c.id, c.studentId, c.kind, c.granted, c.version, c.decidedAt]),
+  );
+
+  await insertMany(
+    q, "challenges",
+    ["id", "professional_id", "created_by", "name", "kind", "goal", "period", "target",
+     "require_photo", "start_date", "end_date", "status", "created_at"],
+    db.challenges.map((c) => [
+      c.id, c.professionalId, c.createdBy, c.name, c.kind, c.goal, c.period, c.target,
+      c.requirePhoto, c.startDate, c.endDate, c.status, c.createdAt,
+    ]),
+  );
+
+  await insertMany(
+    q, "challenge_members",
+    ["id", "challenge_id", "student_id", "status", "responded_at"],
+    db.challengeMembers.map((m) => [m.id, m.challengeId, m.studentId, m.status, m.respondedAt]),
+  );
+
+  await insertMany(
+    q, "challenge_entries",
+    ["id", "challenge_id", "student_id", "date", "value", "photo_file_name", "note", "created_at"],
+    db.challengeEntries.map((e) => [
+      e.id, e.challengeId, e.studentId, e.date, e.value, e.photoFileName, e.note, e.createdAt,
+    ]),
   );
 
   await insertMany(

@@ -9,6 +9,7 @@ const ITEMS = [
   { href: "/aluno/treinos", label: "Treinos", icon: DumbbellIcon },
   { href: "/aluno/checkin", label: "Check-in", icon: CheckIcon },
   { href: "/aluno/evolucao", label: "Evolução", icon: ChartIcon },
+  { href: "/aluno/desafios", label: "Desafios", icon: TrophyIcon },
   { href: "/aluno/perfil", label: "Perfil", icon: UserIcon },
 ];
 
@@ -84,6 +85,17 @@ function ChartIcon() {
     <svg {...ICON_PROPS}>
       <path d="M4 20V4" />
       <path d="M4 16.5 9.5 11l4 3.5L20 7" />
+    </svg>
+  );
+}
+
+function TrophyIcon() {
+  return (
+    <svg {...ICON_PROPS}>
+      <path d="M7 4h10v5a5 5 0 0 1-10 0V4Z" />
+      <path d="M7 6H4.5v1.5A3.5 3.5 0 0 0 8 11" />
+      <path d="M17 6h2.5v1.5A3.5 3.5 0 0 1 16 11" />
+      <path d="M12 14v3M9 20h6M10 17h4" />
     </svg>
   );
 }

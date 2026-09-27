@@ -485,3 +485,169 @@ export async function recordConsent(
     [id("cns"), studentId, kind, granted, version],
   );
 }
+
+/* ------------------------------------------------------------- desafios */
+
+export interface NovoDesafio {
+  professionalId: string;
+  createdBy: string;
+  name: string;
+  kind: "duelo" | "grupo";
+  goal: "treinos" | "habitos" | "cardio_min" | "abdominais" | "corrida_km";
+  period: "diario" | "semanal" | "total";
+  target: number;
+  requirePhoto: boolean;
+  startDate: string;
+  endDate: string;
+  /** Alunos convidados, sem o criador — ele entra já aceito. */
+  convidados: string[];
+}
+
+export async function insertChallenge(d: NovoDesafio): Promise<string> {
+  const challengeId = id("chl");
+
+  await transaction(async (q) => {
+    await q(
+      `INSERT INTO challenges
+         (id, professional_id, created_by, name, kind, goal, period, target,
+          require_photo, start_date, end_date)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+      [challengeId, d.professionalId, d.createdBy, d.name, d.kind, d.goal, d.period,
+       d.target, d.requirePhoto, d.startDate, d.endDate],
+    );
+    // Quem cria já está dentro: convidar a si mesmo seria um convite que
+    // ninguém precisa responder e que só atrapalharia a lista.
+    await q(
+      `INSERT INTO challenge_members (id, challenge_id, student_id, status, responded_at)
+       VALUES ($1, $2, $3, 'aceito', $4)`,
+      [id("clm"), challengeId, d.createdBy, todayISO()],
+    );
+    for (const studentId of d.convidados) {
+      if (studentId === d.createdBy) continue;
+      await q(
+        `INSERT INTO challenge_members (id, challenge_id, student_id)
+         VALUES ($1, $2, $3) ON CONFLICT (challenge_id, student_id) DO NOTHING`,
+        [id("clm"), challengeId, studentId],
+      );
+    }
+  });
+
+  return challengeId;
+}
+
+/** Responde ao convite. Só muda linha que ainda está 'convidado': sem isso,
+ *  um pedido repetido reviveria alguém que já tinha saído do desafio. */
+export async function respondChallengeInvite(
+  challengeId: string,
+  studentId: string,
+  aceitar: boolean,
+) {
+  await sql(
+    `UPDATE challenge_members
+        SET status = $3, responded_at = $4
+      WHERE challenge_id = $1 AND student_id = $2 AND status = 'convidado'`,
+    [challengeId, studentId, aceitar ? "aceito" : "recusado", todayISO()],
+  );
+}
+
+export async function leaveChallenge(challengeId: string, studentId: string) {
+  await sql(
+    `UPDATE challenge_members SET status = 'saiu', responded_at = $3
+      WHERE challenge_id = $1 AND student_id = $2 AND status = 'aceito'`,
+    [challengeId, studentId, todayISO()],
+  );
+}
+
+/** Cancelar é do criador; o desafio some das listas mas o histórico fica. */
+export async function cancelChallenge(challengeId: string, studentId: string) {
+  await sql(
+    "UPDATE challenges SET status = 'cancelado' WHERE id = $1 AND created_by = $2",
+    [challengeId, studentId],
+  );
+}
+
+/** Quem pode ser convidado: aluno ativo do mesmo profissional E com perfil
+ *  público. Sem o perfil público, a pessoa não entra em lista de ninguém. */
+export async function alunosConvidaveis(professionalId: string): Promise<string[]> {
+  const rows = await sql<{ id: string }>(
+    `SELECT id FROM students
+      WHERE professional_id = $1 AND status = 'ativo' AND public_profile`,
+    [professionalId],
+  );
+  return rows.map((r) => r.id);
+}
+
+export async function setPublicProfile(studentId: string, publico: boolean) {
+  await sql("UPDATE students SET public_profile = $2 WHERE id = $1", [studentId, publico]);
+}
+
+/** Registro do dia. Regravar o mesmo dia corrige o valor em vez de somar de
+ *  novo — é o que a pessoa espera ao perceber que digitou errado.
+ *  A foto só é substituída quando vem outra: reenviar só o número não apaga
+ *  a comprovação que já estava lá. */
+export async function upsertChallengeEntry(a: {
+  challengeId: string;
+  studentId: string;
+  date: string;
+  value: number;
+  photoFileName: string | null;
+  note: string;
+}) {
+  await sql(
+    `INSERT INTO challenge_entries
+       (id, challenge_id, student_id, date, value, photo_file_name, note)
+     VALUES ($1, $2, $3, $4, $5, COALESCE($6, ''), $7)
+     ON CONFLICT (challenge_id, student_id, date) DO UPDATE
+        SET value = EXCLUDED.value,
+            note = EXCLUDED.note,
+            photo_file_name = COALESCE($6, challenge_entries.photo_file_name),
+            created_at = NOW()`,
+    [id("cen"), a.challengeId, a.studentId, a.date, a.value, a.photoFileName, a.note],
+  );
+}
+
+/** O aluno participa deste desafio e ele está valendo? Guarda de escrita. */
+export async function podeRegistrarNoDesafio(
+  challengeId: string,
+  studentId: string,
+  dia: string,
+): Promise<{ ok: boolean; motivo?: string; requirePhoto?: boolean }> {
+  const r = await sqlOne<{ start_date: unknown; end_date: unknown; status: string; require_photo: boolean }>(
+    `SELECT ch.start_date, ch.end_date, ch.status, ch.require_photo
+       FROM challenges ch
+       JOIN challenge_members cm ON cm.challenge_id = ch.id
+      WHERE ch.id = $1 AND cm.student_id = $2 AND cm.status = 'aceito'`,
+    [challengeId, studentId],
+  );
+  if (!r) return { ok: false, motivo: "Você não participa deste desafio." };
+  if (r.status !== "ativo") return { ok: false, motivo: "Este desafio foi cancelado." };
+
+  const ini = String(r.start_date instanceof Date ? r.start_date.toISOString() : r.start_date).slice(0, 10);
+  const fim = String(r.end_date instanceof Date ? r.end_date.toISOString() : r.end_date).slice(0, 10);
+  if (dia < ini || dia > fim) return { ok: false, motivo: "Essa data está fora do período do desafio." };
+
+  return { ok: true, requirePhoto: r.require_photo };
+}
+
+/** Conta de acesso do aluno, para mandar notificação a ele. */
+export async function userIdDoAluno(studentId: string): Promise<string | null> {
+  const r = await sqlOne<{ user_id: string }>(
+    "SELECT user_id FROM students WHERE id = $1", [studentId],
+  );
+  return r?.user_id ?? null;
+}
+
+/** Já existe comprovação neste dia? Evita exigir foto de novo de quem só
+ *  quer corrigir o número de um registro já comprovado. */
+export async function entradaJaTemFoto(
+  challengeId: string,
+  studentId: string,
+  dia: string,
+): Promise<boolean> {
+  const r = await sqlOne<{ photo_file_name: string }>(
+    `SELECT photo_file_name FROM challenge_entries
+      WHERE challenge_id = $1 AND student_id = $2 AND date = $3`,
+    [challengeId, studentId, dia],
+  );
+  return Boolean(r?.photo_file_name);
+}

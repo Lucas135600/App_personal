@@ -11,6 +11,7 @@ const ITEMS = [
   { href: "/app/checkins", label: "Check-ins" },
   { href: "/app/exercicios", label: "Exercícios" },
   { href: "/app/agenda", label: "Agenda" },
+  { href: "/app/desafios", label: "Desafios" },
   { href: "/app/conta", label: "Minha conta" },
 ];
 

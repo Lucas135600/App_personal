@@ -9,8 +9,10 @@ import type { Consent, ConsentKind, Database } from "./types";
  * invalidaria silenciosamente a prova.
  */
 
-/** Mude junto com o texto. Formato: ano-mês-sequência. */
-export const VERSAO_TERMO = "2026-09-v1";
+/** Mude junto com o texto. Formato: ano-mês-sequência.
+ *  v2: passou a dizer que foto de desafio é vista pelos adversários. A v1 não
+ *  cobria isso, e o app passou a fazer — o texto tinha que acompanhar. */
+export const VERSAO_TERMO = "2026-09-v2";
 
 export const TERMO_DADOS = {
   titulo: "Tratamento dos meus dados de saúde",
@@ -32,9 +34,13 @@ export const TERMO_IMAGEM = {
     "Autorizo o envio de fotos do meu corpo e a comparação entre elas para avaliar " +
     "minha evolução física.",
   itens: [
-    "As fotos ficam guardadas em área privada e só abrem para você e seu personal, com sessão aberta. Não têm link público.",
+    "Fotos de evolução: ficam em área privada e só abrem para você e seu personal, com sessão aberta. Não têm link público.",
     "Servem apenas para comparar sua evolução. Não são usadas em divulgação, redes sociais ou material de propaganda.",
     "Para usar sua imagem em qualquer divulgação, seu personal precisa pedir uma autorização separada e específica.",
+    /* Este item existe porque o app passou a ter desafios com comprovação, e o
+       texto anterior prometia que foto nenhuma saía de você e do personal.
+       Dizer uma coisa e fazer outra é o que invalida um consentimento. */
+    "Fotos de desafio são diferentes: quando você entra num desafio que pede comprovação, a foto que enviar aparece para os outros participantes daquele desafio. Só para eles, e só enquanto você participar. Entrar nesses desafios é escolha sua, desafio por desafio.",
     "Esta autorização é opcional: sem ela o aplicativo funciona normalmente, só não envia fotos.",
   ],
 } as const;

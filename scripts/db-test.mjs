@@ -80,6 +80,51 @@ r = await q("SELECT count(*)::int n, max(water_ml)::int ml, max(nutrition) nt FR
 ok(r[0].n === 1, `2 gravações, 1 linha (n=${r[0].n})`);
 ok(r[0].ml === 3500 && r[0].nt === "revisada", "a meta mais recente prevalece");
 
+console.log("\n— desafio: convite responde uma vez e não ressuscita");
+await q(`INSERT INTO challenges (id,professional_id,created_by,name,kind,goal,period,target,require_photo,start_date,end_date)
+         VALUES ('chl1','pro','s1','Teste','duelo','cardio_min','diario',30,TRUE,'2026-09-01','2026-09-30')`);
+await q(`INSERT INTO challenge_members (id,challenge_id,student_id) VALUES ('m1','chl1','s1')`);
+await q(`UPDATE challenge_members SET status='aceito' WHERE challenge_id='chl1' AND student_id='s1' AND status='convidado'`);
+await q(`UPDATE challenge_members SET status='recusado' WHERE challenge_id='chl1' AND student_id='s1' AND status='convidado'`);
+r = await q("SELECT status FROM challenge_members WHERE id='m1'");
+ok(r[0].status === "aceito", `resposta repetida nao sobrescreve (${r[0].status})`);
+
+let erroC = null;
+try {
+  await q(`INSERT INTO challenge_members (id,challenge_id,student_id) VALUES ('m2','chl1','s1')`);
+} catch (e) { erroC = e; }
+ok(erroC !== null, "mesma pessoa duas vezes no desafio e rejeitada");
+
+console.log("\n— registro: um por dia, regravar corrige em vez de somar");
+for (const [v, foto] of [[20, ''], [35, 'f.jpg'], [40, '']]) {
+  await q(`INSERT INTO challenge_entries (id,challenge_id,student_id,date,value,photo_file_name)
+           VALUES ($1,'chl1','s1','2026-09-10',$2,$3)
+           ON CONFLICT (challenge_id,student_id,date) DO UPDATE
+              SET value = EXCLUDED.value,
+                  photo_file_name = COALESCE(NULLIF(EXCLUDED.photo_file_name,''), challenge_entries.photo_file_name)`,
+    [`e${v}`, v, foto]);
+}
+r = await q("SELECT count(*)::int n, max(value)::float v, max(photo_file_name) f FROM challenge_entries WHERE challenge_id='chl1'");
+ok(r[0].n === 1, `3 registros no mesmo dia, 1 linha (n=${r[0].n})`);
+ok(r[0].v === 40, `vale o ultimo valor (${r[0].v})`);
+ok(r[0].f === "f.jpg", "regravar sem foto nao apaga a comprovacao anterior");
+
+console.log("\n— desafio: o banco recusa periodo e meta invalidos");
+erroC = null;
+try {
+  await q(`INSERT INTO challenges (id,professional_id,created_by,name,kind,goal,period,target,start_date,end_date)
+           VALUES ('chl2','pro','s1','Invertido','duelo','abdominais','diario',50,'2026-09-30','2026-09-01')`);
+} catch (e) { erroC = e; }
+ok(erroC !== null, "fim antes do inicio e rejeitado");
+
+erroC = null;
+try {
+  await q(`INSERT INTO challenges (id,professional_id,created_by,name,kind,goal,period,target,start_date,end_date)
+           VALUES ('chl3','pro','s1','X','duelo','natacao','diario',50,'2026-09-01','2026-09-30')`);
+} catch (e) { erroC = e; }
+ok(erroC !== null, "meta fora da lista fechada e rejeitada");
+
+
 console.log("\n— check-in: uma resposta por semana, garantido pelo banco");
 await q(`INSERT INTO checkins (id,student_id,professional_id,week_start,status)
          VALUES ('c1','s1','pro','2026-09-14','pendente')`);

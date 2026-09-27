@@ -1,6 +1,7 @@
 import { sql, sqlOne } from "./sql";
 import type {
-  Anamnesis, Assessment, Attendance, Checkin, Consent, Database, Exercise, HabitLog,
+  Anamnesis, Assessment, Attendance, Challenge, ChallengeEntry, ChallengeMember,
+  Checkin, Consent, Database, Exercise, HabitLog,
   HabitStatus, HabitTarget,
   Notification, ProgressPhoto, Student, TrainingPlan, User, Workout,
   WorkoutExercise, WorkoutSession, WorkoutSet,
@@ -92,6 +93,7 @@ const toStudent = (r: R): Student => ({
   modality: s(r.modality) as Student["modality"], goal: s(r.goal),
   status: s(r.status) as Student["status"], startDate: date(r.start_date),
   trainingDays: intArray(r.training_days), notes: s(r.notes),
+  publicProfile: b(r.public_profile),
 });
 
 const toExercise = (r: R): Exercise => ({
@@ -184,6 +186,27 @@ const toConsent = (r: R): Consent => ({
   granted: b(r.granted), version: s(r.version), decidedAt: stamp(r.decided_at),
 });
 
+const toChallenge = (r: R): Challenge => ({
+  id: s(r.id), professionalId: s(r.professional_id), createdBy: s(r.created_by),
+  name: s(r.name), kind: s(r.kind) as Challenge["kind"],
+  goal: s(r.goal) as Challenge["goal"],
+  period: s(r.period) as Challenge["period"],
+  target: num(r.target), requirePhoto: b(r.require_photo),
+  startDate: date(r.start_date), endDate: date(r.end_date),
+  status: s(r.status) as Challenge["status"], createdAt: date(r.created_at),
+});
+
+const toChallengeMember = (r: R): ChallengeMember => ({
+  id: s(r.id), challengeId: s(r.challenge_id), studentId: s(r.student_id),
+  status: s(r.status) as ChallengeMember["status"], respondedAt: dateOrNull(r.responded_at),
+});
+
+const toChallengeEntry = (r: R): ChallengeEntry => ({
+  id: s(r.id), challengeId: s(r.challenge_id), studentId: s(r.student_id),
+  date: date(r.date), value: num(r.value), photoFileName: s(r.photo_file_name),
+  note: s(r.note), createdAt: stamp(r.created_at),
+});
+
 const toAttendance = (r: R): Attendance => ({
   id: s(r.id), studentId: s(r.student_id), professionalId: s(r.professional_id),
   date: date(r.date), present: b(r.present), notes: s(r.notes),
@@ -239,7 +262,8 @@ export async function loadProfessionalData(professionalId: string): Promise<Data
   const [
     users, students, exercises, plans, workouts, workoutExercises,
     sessions, sets, checkins, assessments, photos, habits, habitTargets,
-    consents, attendance, anamnesis, notifications,
+    consents, challenges, challengeMembers, challengeEntries,
+    attendance, anamnesis, notifications,
   ] = await Promise.all([
     sql("SELECT * FROM users WHERE id = $1 OR professional_id = $1", P),
     sql("SELECT * FROM students WHERE professional_id = $1", P),
@@ -273,6 +297,13 @@ export async function loadProfessionalData(professionalId: string): Promise<Data
     sql(`SELECT cs.* FROM consents cs
            JOIN students st ON st.id = cs.student_id
           WHERE st.professional_id = $1`, P),
+    sql("SELECT * FROM challenges WHERE professional_id = $1", P),
+    sql(`SELECT cm.* FROM challenge_members cm
+           JOIN challenges ch ON ch.id = cm.challenge_id
+          WHERE ch.professional_id = $1`, P),
+    sql(`SELECT ce.* FROM challenge_entries ce
+           JOIN challenges ch ON ch.id = ce.challenge_id
+          WHERE ch.professional_id = $1`, P),
     sql("SELECT * FROM attendance WHERE professional_id = $1", P),
     sql("SELECT * FROM anamnesis WHERE professional_id = $1", P),
     sql(`SELECT nt.* FROM notifications nt
@@ -296,6 +327,9 @@ export async function loadProfessionalData(professionalId: string): Promise<Data
     habitLogs: habits.map(toHabit),
     habitTargets: habitTargets.map(toHabitTarget),
     consents: consents.map(toConsent),
+    challenges: challenges.map(toChallenge),
+    challengeMembers: challengeMembers.map(toChallengeMember),
+    challengeEntries: challengeEntries.map(toChallengeEntry),
     attendance: attendance.map(toAttendance),
     anamnesis: anamnesis.map(toAnamnesis),
     notifications: notifications.map(toNotification),

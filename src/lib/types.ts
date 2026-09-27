@@ -29,6 +29,8 @@ export interface Student {
   startDate: string;
   trainingDays: number[];
   notes: string;
+  /** Visível para os outros alunos do mesmo personal. Desligado por padrão. */
+  publicProfile: boolean;
 }
 
 export interface Exercise {
@@ -188,6 +190,59 @@ export interface HabitTarget {
   updatedAt: string;
 }
 
+/** Duelo é 1x1; grupo aceita quantos o criador convidar. */
+export type ChallengeKind = "duelo" | "grupo";
+
+/** O que conta ponto.
+ *  `treinos` e `habitos` o app mede sozinho; os outros três o aluno registra. */
+export type ChallengeGoal =
+  | "treinos"
+  | "habitos"
+  | "cardio_min"
+  | "abdominais"
+  | "corrida_km";
+
+/** `diario`/`semanal` contam períodos em que a meta foi batida; `total` soma. */
+export type ChallengePeriod = "diario" | "semanal" | "total";
+export type ChallengeMemberStatus = "convidado" | "aceito" | "recusado" | "saiu";
+
+export interface Challenge {
+  id: string;
+  professionalId: string;
+  createdBy: string;
+  name: string;
+  kind: ChallengeKind;
+  goal: ChallengeGoal;
+  period: ChallengePeriod;
+  /** Meta por período. 0 quando o desafio é só somar. */
+  target: number;
+  requirePhoto: boolean;
+  startDate: string;
+  endDate: string;
+  status: "ativo" | "cancelado";
+  createdAt: string;
+}
+
+export interface ChallengeMember {
+  id: string;
+  challengeId: string;
+  studentId: string;
+  status: ChallengeMemberStatus;
+  respondedAt: string | null;
+}
+
+/** Registro manual do aluno num dia. Um por dia: regravar corrige. */
+export interface ChallengeEntry {
+  id: string;
+  challengeId: string;
+  studentId: string;
+  date: string;
+  value: number;
+  photoFileName: string;
+  note: string;
+  createdAt: string;
+}
+
 /** 'dados' = tratar dado de saúde; 'imagem' = usar fotos para avaliação. */
 export type ConsentKind = "dados" | "imagem";
 
@@ -249,6 +304,9 @@ export interface Database {
   habitLogs: HabitLog[];
   habitTargets: HabitTarget[];
   consents: Consent[];
+  challenges: Challenge[];
+  challengeMembers: ChallengeMember[];
+  challengeEntries: ChallengeEntry[];
   attendance: Attendance[];
   anamnesis: Anamnesis[];
   notifications: Notification[];
