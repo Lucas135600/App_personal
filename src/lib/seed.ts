@@ -160,6 +160,7 @@ export function buildSeed(): Database {
     id: PRO_ID,
     email: "lucas@lbpersonal.com",
     passwordHash: hash("lb123456"),
+    mustChangePassword: false,
     name: "Lucas Braz",
     role: "personal",
     professionalId: null,
@@ -179,7 +180,7 @@ export function buildSeed(): Database {
     users.push({
       id: userId, email: s.email, passwordHash: hash("aluno123"), name: s.name,
       role: "student", professionalId: PRO_ID, avatarColor: s.color,
-      createdAt: addDays(today, -180),
+      createdAt: addDays(today, -180), mustChangePassword: false,
     });
     students.push({
       id: studentId, userId, professionalId: PRO_ID, birthDate: s.birthDate,

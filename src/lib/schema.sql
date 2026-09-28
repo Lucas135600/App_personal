@@ -248,6 +248,12 @@ CREATE TABLE IF NOT EXISTS challenge_entries (
    padrão: aparecer numa lista para estranhos tem que ser escolha, não
    consequência de ter se cadastrado. Quem liga passa a ver e a ser visto —
    simétrico de propósito, para ninguém garimpar sem se expor. */
+/* Senha de primeiro acesso: quem entra com ela troca antes de usar o app.
+   O personal gera e enxerga essa senha para entregar ao aluno — e é justamente
+   por isso que ela não pode virar a senha permanente de uma conta com dado de
+   saúde de terceiro. */
+ALTER TABLE users ADD COLUMN IF NOT EXISTS must_change_password BOOLEAN NOT NULL DEFAULT FALSE;
+
 ALTER TABLE students ADD COLUMN IF NOT EXISTS public_profile BOOLEAN NOT NULL DEFAULT FALSE;
 
 /* Consentimentos, um registro por decisão — nunca sobrescreve.

@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { hashPassword } from "@/lib/db";
+import { gerarSenhaPrimeiroAcesso, hashPassword } from "@/lib/password";
 import { assertOwnStudent, requirePersonal } from "@/lib/auth";
 import * as repo from "@/lib/repo-write";
 import { findUserById } from "@/lib/repo";
@@ -32,32 +32,82 @@ function weekdaysFrom(formData: FormData): number[] {
 
 /* ------------------------------------------------------------------ alunos */
 
-export async function createStudentAction(formData: FormData) {
+export interface NovoAlunoState {
+  error?: string;
+  /** Credenciais para entregar ao aluno. Só existem nesta resposta. */
+  acesso?: { studentId: string; nome: string; email: string; senha: string; telefone: string };
+}
+
+export async function createStudentAction(
+  _prev: NovoAlunoState,
+  formData: FormData,
+): Promise<NovoAlunoState> {
   const pro = await requirePersonal();
   const name = str(formData.get("name"));
   const email = str(formData.get("email")).toLowerCase();
-  if (!name || !email) throw new Error("Nome e e-mail são obrigatórios.");
-  if (await repo.emailEmUso(email)) throw new Error("Já existe um usuário com este e-mail.");
+  if (!name || !email) return { error: "Nome e e-mail são obrigatórios." };
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) return { error: "E-mail inválido." };
+  if (await repo.emailEmUso(email)) return { error: "Já existe um usuário com este e-mail." };
 
+  /* A senha é gerada aqui, nunca digitada pelo personal. Senha escolhida por
+     terceiro tende a virar a mesma para todo mundo — era literalmente o caso
+     antes disto, com "aluno123" para o app inteiro. */
+  const senha = gerarSenhaPrimeiroAcesso();
   const trainingDays = weekdaysFrom(formData);
   const goal = str(formData.get("goal")) || "Saúde e qualidade de vida";
+  const telefone = str(formData.get("phone"));
 
-  const studentId = await repo.insertStudent(pro.id, {
-    name,
-    email,
-    passwordHash: hashPassword(str(formData.get("password")) || "aluno123"),
-    avatarColor: COLORS[Math.floor(Math.random() * COLORS.length)],
-    birthDate: str(formData.get("birthDate")),
-    phone: str(formData.get("phone")),
-    modality: (str(formData.get("modality")) as Modality) || "online",
-    goal,
-    trainingDays: trainingDays.length ? trainingDays : [1, 3, 5],
-    notes: str(formData.get("notes")),
-    planEnd: addDays(todayISO(), 84),
-  });
+  let studentId: string;
+  try {
+    studentId = await repo.insertStudent(pro.id, {
+      name,
+      email,
+      passwordHash: hashPassword(senha),
+      avatarColor: COLORS[Math.floor(Math.random() * COLORS.length)],
+      birthDate: str(formData.get("birthDate")),
+      phone: telefone,
+      modality: (str(formData.get("modality")) as Modality) || "online",
+      goal,
+      trainingDays: trainingDays.length ? trainingDays : [1, 3, 5],
+      notes: str(formData.get("notes")),
+      planEnd: addDays(todayISO(), 84),
+    });
+  } catch (e) {
+    console.error("createStudentAction", e);
+    return { error: "Não foi possível cadastrar agora. Tente de novo em instantes." };
+  }
 
   revalidatePath("/app/alunos");
-  redirect(`/app/alunos/${studentId}`);
+  // Sem redirect: a senha só existe em texto puro nesta resposta, e a tela
+  // precisa mostrá-la uma vez. Depois disto, só o hash fica guardado.
+  return { acesso: { studentId, nome: name, email, senha, telefone } };
+}
+
+/** Gera outra senha de primeiro acesso. Serve para quando o aluno perde a
+ *  primeira — sem isto o personal fica sem saída, porque a senha antiga não
+ *  pode ser recuperada, só substituída. */
+export async function resetStudentPasswordAction(
+  _prev: NovoAlunoState,
+  formData: FormData,
+): Promise<NovoAlunoState> {
+  const pro = await requirePersonal();
+  const studentId = str(formData.get("studentId"));
+  const student = await assertOwnStudent(pro.id, studentId);
+  const user = await findUserById(student.userId);
+  if (!user) return { error: "Aluno não encontrado." };
+
+  const senha = gerarSenhaPrimeiroAcesso();
+  try {
+    await repo.resetPrimeiroAcesso(student.userId, hashPassword(senha));
+  } catch (e) {
+    console.error("resetStudentPasswordAction", e);
+    return { error: "Não foi possível gerar agora. Tente de novo em instantes." };
+  }
+
+  revalidatePath(`/app/alunos/${studentId}`);
+  return {
+    acesso: { studentId, nome: user.name, email: user.email, senha, telefone: student.phone },
+  };
 }
 
 export async function updateStudentAction(formData: FormData) {

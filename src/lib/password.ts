@@ -66,3 +66,27 @@ export function verifyPassword(password: string, stored: string): ResultadoSenha
   const desatualizado = Number(n) !== N || Number(r) !== R || Number(p) !== P;
   return { ok, precisaAtualizar: ok && desatualizado };
 }
+
+/* Senha de primeiro acesso, gerada pelo sistema.
+ *
+ * Alfabeto sem os pares que se confundem quando alguém lê em voz alta ou
+ * digita olhando: 0/O, 1/I/L, 5/S, 8/B, 2/Z. Sobra menos entropia por
+ * caractere, e por isso o comprimento compensa.
+ *
+ * Oito caracteres nesse alfabeto dão cerca de 10^11 combinações. É pouco para
+ * uma senha permanente e sobra para uma que existe até o primeiro acesso —
+ * que é exatamente o que ela é: quem entra com ela é obrigado a trocar.
+ */
+const ALFABETO = "ACDEFGHJKMNPQRTUVWXY34679";
+
+export function gerarSenhaPrimeiroAcesso(tamanho = 8): string {
+  const bytes = crypto.randomBytes(tamanho * 2);
+  let out = "";
+  // rejeita o resto que enviesaria o sorteio em vez de usar % direto
+  for (let i = 0; out.length < tamanho && i < bytes.length; i++) {
+    const limite = 256 - (256 % ALFABETO.length);
+    if (bytes[i] >= limite) continue;
+    out += ALFABETO[bytes[i] % ALFABETO.length];
+  }
+  return out.length === tamanho ? out : gerarSenhaPrimeiroAcesso(tamanho);
+}

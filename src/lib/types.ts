@@ -15,6 +15,8 @@ export interface User {
   professionalId: string | null;
   avatarColor: string;
   createdAt: string;
+  /** Senha de primeiro acesso ainda não trocada. */
+  mustChangePassword: boolean;
 }
 
 export interface Student {

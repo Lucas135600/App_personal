@@ -85,6 +85,7 @@ const toUser = (r: R): User => ({
   id: s(r.id), email: s(r.email), passwordHash: s(r.password_hash), name: s(r.name),
   role: s(r.role) as User["role"], professionalId: r.professional_id ? s(r.professional_id) : null,
   avatarColor: s(r.avatar_color), createdAt: date(r.created_at),
+  mustChangePassword: b(r.must_change_password),
 });
 
 const toStudent = (r: R): Student => ({

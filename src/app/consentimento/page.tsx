@@ -15,6 +15,7 @@ export const metadata: Metadata = {
    redirecionamento cairia em laço. */
 export default async function ConsentPage() {
   const { user, student } = await requireStudent();
+  if (user.mustChangePassword) redirect("/primeiro-acesso");
   const db = await getDb();
 
   if (estadoConsentimento(db, student.id).dados) redirect("/aluno");

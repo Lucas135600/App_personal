@@ -13,6 +13,7 @@ import {
 import { WeekdayPicker } from "@/components/weekday-picker";
 import { PhotoCompare } from "@/components/photo-compare";
 import { estadoConsentimento } from "@/lib/consent";
+import { ResetPasswordButton } from "./reset-password";
 import { AnamnesisForm } from "./anamnesis-form";
 import { HabitTargetsForm } from "./habit-targets-form";
 import {
@@ -32,6 +33,8 @@ type HabitKey = "water" | "nutrition" | "sleep" | "steps" | "supplement";
 /* ------------------------------------------------------------ visão geral */
 
 export async function OverviewTab({ view }: { view: StudentView }) {
+  const db = await getDb();
+  const conta = db.users.find((u) => u.id === view.student.userId);
   const freq = (await weeklyFrequency(view.student.id, 8)).map((p) => ({
     label: formatShortDate(p.weekStart),
     done: p.done,
@@ -49,6 +52,29 @@ export async function OverviewTab({ view }: { view: StudentView }) {
           <Stat label="Massa magra" value={a?.muscleMass != null ? `${a.muscleMass} kg` : "--"} />
           <Stat label="Frequência" value={`${view.frequency}%`} tone={toneForScore(view.frequency)} sub={`${view.doneLast4Weeks}/${view.plannedLast4Weeks} treinos`} />
         </div>
+
+        <Card>
+          <SectionTitle
+            action={
+              <Badge tone={conta?.mustChangePassword ? "warn" : "ok"}>
+                {conta?.mustChangePassword ? "não entrou ainda" : "acesso ativo"}
+              </Badge>
+            }
+          >
+            Acesso ao aplicativo
+          </SectionTitle>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-sm text-ink-400">
+              {conta?.mustChangePassword
+                ? "A senha de primeiro acesso ainda não foi trocada. Se o aluno perdeu, gere outra."
+                : "O aluno já criou a senha dele. Você não consegue vê-la — só gerar uma nova de primeiro acesso."}
+            </p>
+            <ResetPasswordButton
+              studentId={view.student.id}
+              pendente={Boolean(conta?.mustChangePassword)}
+            />
+          </div>
+        </Card>
 
         <Card>
           <TargetBars data={freq} label="Treinos por semana (8 semanas)" />

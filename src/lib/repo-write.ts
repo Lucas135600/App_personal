@@ -35,8 +35,9 @@ export async function insertStudent(professionalId: string, a: NovoAluno): Promi
 
   await transaction(async (q) => {
     await q(
-      `INSERT INTO users (id, email, password_hash, name, role, professional_id, avatar_color, created_at)
-       VALUES ($1, $2, $3, $4, 'student', $5, $6, $7)`,
+      `INSERT INTO users (id, email, password_hash, name, role, professional_id,
+                           avatar_color, created_at, must_change_password)
+       VALUES ($1, $2, $3, $4, 'student', $5, $6, $7, TRUE)`,
       [userId, a.email, a.passwordHash, a.name, professionalId, a.avatarColor, hoje],
     );
     await q(
@@ -650,4 +651,20 @@ export async function entradaJaTemFoto(
     [challengeId, studentId, dia],
   );
   return Boolean(r?.photo_file_name);
+}
+
+/** Nova senha de primeiro acesso: troca o hash e volta a exigir a troca. */
+export async function resetPrimeiroAcesso(userId: string, hash: string) {
+  await sql(
+    "UPDATE users SET password_hash = $2, must_change_password = TRUE WHERE id = $1",
+    [userId, hash],
+  );
+}
+
+/** O aluno trocou a senha: a exigência sai. */
+export async function concluirPrimeiroAcesso(userId: string, hash: string) {
+  await sql(
+    "UPDATE users SET password_hash = $2, must_change_password = FALSE WHERE id = $1",
+    [userId, hash],
+  );
 }
