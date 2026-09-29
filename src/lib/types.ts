@@ -17,6 +17,22 @@ export interface User {
   createdAt: string;
   /** Senha de primeiro acesso ainda não trocada. */
   mustChangePassword: boolean;
+  /** Dono do aplicativo ou sócio liberado por ele. Independe de `role`. */
+  isAdmin: boolean;
+}
+
+/** Plano de assinatura que o personal vê. Valores sempre em centavos. */
+export interface SubscriptionPlan {
+  id: string;
+  name: string;
+  months: number;
+  priceCents: number;
+  /** Preço "de", riscado na tela. 0 = sem desconto. */
+  listPriceCents: number;
+  installments: number;
+  description: string;
+  active: boolean;
+  orderIndex: number;
 }
 
 export interface Student {
@@ -309,6 +325,7 @@ export interface Database {
   challenges: Challenge[];
   challengeMembers: ChallengeMember[];
   challengeEntries: ChallengeEntry[];
+  subscriptionPlans: SubscriptionPlan[];
   attendance: Attendance[];
   anamnesis: Anamnesis[];
   notifications: Notification[];

@@ -3,7 +3,7 @@ import type {
   Anamnesis, Assessment, Attendance, Challenge, ChallengeEntry, ChallengeMember,
   Checkin, Consent, Database, Exercise, HabitLog,
   HabitStatus, HabitTarget,
-  Notification, ProgressPhoto, Student, TrainingPlan, User, Workout,
+  Notification, ProgressPhoto, Student, SubscriptionPlan, TrainingPlan, User, Workout,
   WorkoutExercise, WorkoutSession, WorkoutSet,
 } from "./types";
 
@@ -85,7 +85,7 @@ const toUser = (r: R): User => ({
   id: s(r.id), email: s(r.email), passwordHash: s(r.password_hash), name: s(r.name),
   role: s(r.role) as User["role"], professionalId: r.professional_id ? s(r.professional_id) : null,
   avatarColor: s(r.avatar_color), createdAt: date(r.created_at),
-  mustChangePassword: b(r.must_change_password),
+  mustChangePassword: b(r.must_change_password), isAdmin: b(r.is_admin),
 });
 
 const toStudent = (r: R): Student => ({
@@ -331,6 +331,7 @@ export async function loadProfessionalData(professionalId: string): Promise<Data
     challenges: challenges.map(toChallenge),
     challengeMembers: challengeMembers.map(toChallengeMember),
     challengeEntries: challengeEntries.map(toChallengeEntry),
+    subscriptionPlans: [], // vivem fora do escopo por profissional; use listSubscriptionPlans()
     attendance: attendance.map(toAttendance),
     anamnesis: anamnesis.map(toAnamnesis),
     notifications: notifications.map(toNotification),
@@ -343,4 +344,31 @@ export async function professionalOf(studentId: string): Promise<string | null> 
     "SELECT professional_id FROM students WHERE id = $1", [studentId],
   );
   return r?.professional_id ?? null;
+}
+
+/* ----------------------------------------------- planos de assinatura */
+
+const toPlan2 = (r: R): SubscriptionPlan => ({
+  id: s(r.id), name: s(r.name), months: num(r.months),
+  priceCents: num(r.price_cents), listPriceCents: num(r.list_price_cents),
+  installments: num(r.installments), description: s(r.description),
+  active: b(r.active), orderIndex: num(r.order_index),
+});
+
+/* Fora do getDb() de propósito: planos não pertencem a um profissional, são
+   do aplicativo. Enfiá-los no snapshot por profissional daria a impressão
+   errada de que cada personal tem os seus. */
+export async function listSubscriptionPlans(incluirInativos = false): Promise<SubscriptionPlan[]> {
+  const rows = await sql(
+    incluirInativos
+      ? "SELECT * FROM subscription_plans ORDER BY order_index, months"
+      : "SELECT * FROM subscription_plans WHERE active ORDER BY order_index, months",
+  );
+  return rows.map(toPlan2);
+}
+
+/** Administradores, para a tela de sócios. */
+export async function listAdmins(): Promise<User[]> {
+  const rows = await sql("SELECT * FROM users WHERE is_admin ORDER BY name");
+  return rows.map(toUser);
 }

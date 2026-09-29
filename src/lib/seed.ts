@@ -3,7 +3,7 @@ import type {
   Anamnesis, Assessment, Attendance, Challenge, ChallengeEntry, ChallengeMember,
   Checkin, Consent, Database, Exercise, HabitLog,
   HabitStatus, HabitTarget,
-  Modality, Notification, Student, TrainingPlan, User, Workout, WorkoutExercise,
+  Modality, Notification, Student, SubscriptionPlan, TrainingPlan, User, Workout, WorkoutExercise,
   WorkoutSession, WorkoutSet,
 } from "./types";
 import { addDays, currentWeekStart, formatDate, todayISO } from "./dates";
@@ -156,11 +156,28 @@ export function buildSeed(): Database {
   const notifications: Notification[] = [];
   const photoInputs: PhotoSeedInput[] = [];
 
+  /* Planos de exemplo, com os mesmos números da referência. Servem para a
+     tela nascer com conteúdo; o administrador troca pelos reais. */
+  const subscriptionPlans: SubscriptionPlan[] = [
+    { id: "pln_1m", name: "1 mês", months: 1, priceCents: 3990, listPriceCents: 0,
+      installments: 1, description: "1 mês de assinatura com alunos ilimitados",
+      active: true, orderIndex: 1 },
+    { id: "pln_3m", name: "3 meses", months: 3, priceCents: 11900, listPriceCents: 0,
+      installments: 3, description: "3 meses de assinatura com alunos ilimitados",
+      active: true, orderIndex: 3 },
+    { id: "pln_6m", name: "6 meses", months: 6, priceCents: 21590, listPriceCents: 23940,
+      installments: 1, description: "6 meses de assinatura com alunos ilimitados",
+      active: true, orderIndex: 6 },
+    { id: "pln_12m", name: "12 meses", months: 12, priceCents: 40690, listPriceCents: 47880,
+      installments: 1, description: "12 meses de assinatura com alunos ilimitados",
+      active: true, orderIndex: 12 },
+  ];
+
   users.push({
     id: PRO_ID,
     email: "lucas@lbpersonal.com",
     passwordHash: hash("lb123456"),
-    mustChangePassword: false,
+    mustChangePassword: false, isAdmin: true,
     name: "Lucas Braz",
     role: "personal",
     professionalId: null,
@@ -180,7 +197,7 @@ export function buildSeed(): Database {
     users.push({
       id: userId, email: s.email, passwordHash: hash("aluno123"), name: s.name,
       role: "student", professionalId: PRO_ID, avatarColor: s.color,
-      createdAt: addDays(today, -180), mustChangePassword: false,
+      createdAt: addDays(today, -180), mustChangePassword: false, isAdmin: false,
     });
     students.push({
       id: studentId, userId, professionalId: PRO_ID, birthDate: s.birthDate,
@@ -432,6 +449,7 @@ export function buildSeed(): Database {
     challenges,
     challengeMembers,
     challengeEntries,
+    subscriptionPlans,
     habitLogs, attendance, anamnesis, notifications,
   };
 }

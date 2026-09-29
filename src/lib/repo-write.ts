@@ -668,3 +668,56 @@ export async function concluirPrimeiroAcesso(userId: string, hash: string) {
     [userId, hash],
   );
 }
+
+/* ----------------------------------------------- planos de assinatura */
+
+export interface PlanoInput {
+  name: string;
+  months: number;
+  priceCents: number;
+  listPriceCents: number;
+  installments: number;
+  description: string;
+  orderIndex: number;
+  active: boolean;
+}
+
+export async function upsertPlan(planId: string | null, p: PlanoInput): Promise<string> {
+  if (planId) {
+    await sql(
+      `UPDATE subscription_plans
+          SET name = $2, months = $3, price_cents = $4, list_price_cents = $5,
+              installments = $6, description = $7, order_index = $8, active = $9
+        WHERE id = $1`,
+      [planId, p.name, p.months, p.priceCents, p.listPriceCents, p.installments,
+       p.description, p.orderIndex, p.active],
+    );
+    return planId;
+  }
+  const novo = id("pln");
+  await sql(
+    `INSERT INTO subscription_plans
+       (id, name, months, price_cents, list_price_cents, installments, description, order_index, active)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+    [novo, p.name, p.months, p.priceCents, p.listPriceCents, p.installments,
+     p.description, p.orderIndex, p.active],
+  );
+  return novo;
+}
+
+export async function deletePlan(planId: string) {
+  await sql("DELETE FROM subscription_plans WHERE id = $1", [planId]);
+}
+
+/* ------------------------------------------------------- administradores */
+
+/** Marca ou desmarca um sócio pelo e-mail. Devolve null se não houver conta
+ *  com esse e-mail — liberar quem ainda não existe daria a impressão de ter
+ *  funcionado e não funcionaria. */
+export async function setAdminByEmail(email: string, admin: boolean): Promise<string | null> {
+  const r = await sqlOne<{ id: string; name: string }>(
+    "UPDATE users SET is_admin = $2 WHERE lower(email) = lower($1) RETURNING id, name",
+    [email.trim(), admin],
+  );
+  return r?.id ?? null;
+}

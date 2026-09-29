@@ -252,6 +252,29 @@ CREATE TABLE IF NOT EXISTS challenge_entries (
    O personal gera e enxerga essa senha para entregar ao aluno — e é justamente
    por isso que ela não pode virar a senha permanente de uma conta com dado de
    saúde de terceiro. */
+/* Administrador: o dono do aplicativo e os sócios que ele liberar.
+   É uma marca à parte de `role`, não um terceiro papel, porque o dono também
+   é personal — virar 'admin' o expulsaria das telas de aluno dele. */
+ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin BOOLEAN NOT NULL DEFAULT FALSE;
+
+/* Planos de assinatura que o personal enxerga. Só o administrador cadastra.
+   Preço em CENTAVOS, inteiro. Dinheiro em ponto flutuante acumula erro de
+   arredondamento: 39.90 não existe exatamente em binário, e a soma de doze
+   parcelas fecha alguns centavos fora. */
+CREATE TABLE IF NOT EXISTS subscription_plans (
+  id               TEXT PRIMARY KEY,
+  name             TEXT NOT NULL,
+  months           INTEGER NOT NULL CHECK (months > 0),
+  price_cents      INTEGER NOT NULL CHECK (price_cents >= 0),
+  -- preço "de" riscado; 0 = sem desconto. O percentual sai da conta, não é
+  -- guardado: guardado, ficaria mentindo assim que um dos dois mudasse.
+  list_price_cents INTEGER NOT NULL DEFAULT 0 CHECK (list_price_cents >= 0),
+  installments     INTEGER NOT NULL DEFAULT 1 CHECK (installments > 0),
+  description      TEXT NOT NULL DEFAULT '',
+  active           BOOLEAN NOT NULL DEFAULT TRUE,
+  order_index      INTEGER NOT NULL DEFAULT 0
+);
+
 ALTER TABLE users ADD COLUMN IF NOT EXISTS must_change_password BOOLEAN NOT NULL DEFAULT FALSE;
 
 ALTER TABLE students ADD COLUMN IF NOT EXISTS public_profile BOOLEAN NOT NULL DEFAULT FALSE;
@@ -339,3 +362,4 @@ CREATE INDEX IF NOT EXISTS idx_challenges_professional ON challenges(professiona
 CREATE INDEX IF NOT EXISTS idx_challenge_members_student ON challenge_members(student_id, status);
 CREATE INDEX IF NOT EXISTS idx_challenge_members_challenge ON challenge_members(challenge_id);
 CREATE INDEX IF NOT EXISTS idx_challenge_entries_challenge ON challenge_entries(challenge_id, date);
+CREATE INDEX IF NOT EXISTS idx_plans_ativos ON subscription_plans(active, order_index);

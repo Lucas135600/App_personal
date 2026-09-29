@@ -43,10 +43,12 @@ export async function seedDatabase(q: Querier): Promise<void> {
 
   await insertMany(
     q, "users",
-    ["id", "email", "password_hash", "name", "role", "professional_id", "avatar_color", "created_at"],
+    ["id", "email", "password_hash", "name", "role", "professional_id", "avatar_color",
+     "created_at", "must_change_password", "is_admin"],
     // O personal precisa existir antes dos alunos por causa da FK professional_id.
     [...db.users].sort((a) => (a.role === "personal" ? -1 : 1))
-      .map((u) => [u.id, u.email, u.passwordHash, u.name, u.role, u.professionalId, u.avatarColor, u.createdAt]),
+      .map((u) => [u.id, u.email, u.passwordHash, u.name, u.role, u.professionalId,
+                   u.avatarColor, u.createdAt, u.mustChangePassword, u.isAdmin]),
   );
 
   await insertMany(
@@ -178,6 +180,16 @@ export async function seedDatabase(q: Querier): Promise<void> {
     ["id", "challenge_id", "student_id", "date", "value", "photo_file_name", "note", "created_at"],
     db.challengeEntries.map((e) => [
       e.id, e.challengeId, e.studentId, e.date, e.value, e.photoFileName, e.note, e.createdAt,
+    ]),
+  );
+
+  await insertMany(
+    q, "subscription_plans",
+    ["id", "name", "months", "price_cents", "list_price_cents", "installments",
+     "description", "active", "order_index"],
+    db.subscriptionPlans.map((p) => [
+      p.id, p.name, p.months, p.priceCents, p.listPriceCents, p.installments,
+      p.description, p.active, p.orderIndex,
     ]),
   );
 

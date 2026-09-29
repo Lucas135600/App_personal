@@ -5,6 +5,7 @@ import { hashPassword, verifyPassword } from "./password";
 import { SESSION_COOKIE, signSession, verifySession } from "./session";
 import { findStudentById, findStudentByUserId, findUserByEmail, findUserById } from "./repo";
 import { updatePasswordHash } from "./repo-write";
+import { isAdmin } from "./admin";
 import type { Student, User } from "./types";
 
 export async function authenticate(email: string, password: string): Promise<User | null> {
@@ -72,4 +73,13 @@ export async function assertOwnStudent(professionalId: string, studentId: string
     throw new Error("Aluno não encontrado para este profissional.");
   }
   return student;
+}
+
+/** Área de administração: dono do aplicativo e sócios liberados por ele.
+ *  Independe de ser personal — o dono é as duas coisas. */
+export async function requireAdmin(): Promise<User> {
+  const user = await currentUser();
+  if (!user) redirect("/login");
+  if (!isAdmin(user)) redirect(user.role === "personal" ? "/app" : "/aluno");
+  return user;
 }

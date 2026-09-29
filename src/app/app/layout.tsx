@@ -5,6 +5,7 @@ import { logoutAction } from "@/lib/actions/auth";
 import { Logo } from "@/components/logo";
 import { Avatar } from "@/components/ui";
 import { SideNav } from "@/components/side-nav";
+import { isAdmin } from "@/lib/admin";
 
 export default async function PersonalLayout({ children }: { children: React.ReactNode }) {
   const pro = await requirePersonal();
@@ -18,7 +19,7 @@ export default async function PersonalLayout({ children }: { children: React.Rea
           <Logo size="sm" className="justify-start" />
         </Link>
 
-        <SideNav unread={unread} />
+        <SideNav unread={unread} admin={isAdmin(pro)} />
 
         <div className="hidden lg:mt-auto lg:block">
           <Link
