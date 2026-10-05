@@ -53,10 +53,11 @@ export async function seedDatabase(q: Querier): Promise<void> {
 
   await insertMany(
     q, "students",
-    ["id", "user_id", "professional_id", "birth_date", "phone", "modality", "goal", "status", "start_date", "training_days", "notes", "public_profile"],
+    ["id", "user_id", "professional_id", "birth_date", "phone", "modality", "goal", "status", "start_date", "training_days", "notes", "public_profile", "monthly_classes"],
     db.students.map((s) => [
       s.id, s.userId, s.professionalId, s.birthDate, s.phone, s.modality,
       s.goal, s.status, s.startDate, s.trainingDays, s.notes, s.publicProfile,
+      s.monthlyClasses,
     ]),
     { training_days: "smallint[]" },
   );
@@ -195,8 +196,19 @@ export async function seedDatabase(q: Querier): Promise<void> {
 
   await insertMany(
     q, "attendance",
-    ["id", "student_id", "professional_id", "date", "present", "notes"],
-    db.attendance.map((a) => [a.id, a.studentId, a.professionalId, a.date, a.present, a.notes]),
+    ["id", "student_id", "professional_id", "date", "present", "notes", "reason", "consumes", "start_time"],
+    db.attendance.map((a) => [
+      a.id, a.studentId, a.professionalId, a.date, a.present, a.notes,
+      a.reason, a.consumes, a.startTime,
+    ]),
+  );
+
+  await insertMany(
+    q, "class_schedule",
+    ["id", "student_id", "professional_id", "weekday", "start_time", "duration_min"],
+    db.classSchedule.map((c) => [
+      c.id, c.studentId, c.professionalId, c.weekday, c.startTime, c.durationMin,
+    ]),
   );
 
   await insertMany(

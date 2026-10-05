@@ -49,6 +49,8 @@ export interface Student {
   notes: string;
   /** Visível para os outros alunos do mesmo personal. Desligado por padrão. */
   publicProfile: boolean;
+  /** Tamanho do pacote de aulas contratado. 0 = sem pacote. */
+  monthlyClasses: number;
 }
 
 export interface Exercise {
@@ -275,6 +277,9 @@ export interface Consent {
   decidedAt: string;
 }
 
+/** Por que a aula não aconteceu. '' quando aconteceu. */
+export type AbsenceReason = "" | "falta_aluno" | "cancelada" | "remarcada";
+
 export interface Attendance {
   id: string;
   studentId: string;
@@ -282,6 +287,25 @@ export interface Attendance {
   date: string;
   present: boolean;
   notes: string;
+  reason: AbsenceReason;
+  /** Se a aula saiu do pacote contratado. */
+  consumes: boolean;
+  /** Horário em que a aula estava marcada, 'HH:MM'. '' quando não havia hora. */
+  startTime: string;
+  /** Quando o personal respondeu à confirmação. null = registro manual antigo. */
+  confirmedAt: string | null;
+}
+
+/** Horário fixo da aula presencial, um por dia da semana. */
+export interface ClassSchedule {
+  id: string;
+  studentId: string;
+  professionalId: string;
+  /** 0 = domingo, como em Date.getDay(). */
+  weekday: number;
+  /** 'HH:MM' no fuso do personal. */
+  startTime: string;
+  durationMin: number;
 }
 
 export interface AnamnesisAnswers {
@@ -327,6 +351,7 @@ export interface Database {
   challengeEntries: ChallengeEntry[];
   subscriptionPlans: SubscriptionPlan[];
   attendance: Attendance[];
+  classSchedule: ClassSchedule[];
   anamnesis: Anamnesis[];
   notifications: Notification[];
 }

@@ -1,5 +1,9 @@
 import { getDb } from "./scope";
 import { addDays, currentMonth, currentWeekStart, daysSince, monthGrid, todayISO, weekStart } from "./dates";
+import {
+  classCountsByDate, currentCycle, pendingConfirmations,
+  type ClassCount, type PendingClass,
+} from "./classes";
 import type {
   Assessment, Checkin, Exercise, Modality, Student, User, Workout, WorkoutExercise,
 } from "./types";
@@ -391,16 +395,28 @@ export interface AgendaStudent {
   ocupaHorario: boolean;
 }
 
+/** O aluno num dia específico: o horário só existe aqui porque varia por dia
+ *  da semana — o mesmo aluno treina terça às 18h e quinta às 7h. */
+export interface AgendaSlot extends AgendaStudent {
+  /** 'HH:MM' da aula marcada. '' = dia na grade, sem hora cadastrada. */
+  startTime: string;
+  durationMin: number;
+}
+
 export interface AgendaDay {
   date: string;
   day: number;
   inMonth: boolean;
   isToday: boolean;
   isFuture: boolean;
-  scheduled: AgendaStudent[];
+  scheduled: AgendaSlot[];
   presentIds: string[];
   absentIds: string[];
   trainedIds: string[];
+  /** Aulas que já terminaram e seguem sem resposta do personal. */
+  pendingIds: string[];
+  /** "aula 4/12" por aluno, nos dias em que a aula descontou do pacote. */
+  counts: Record<string, ClassCount>;
 }
 
 export interface AgendaTotals {
@@ -415,11 +431,15 @@ export interface AgendaData {
   weeks: AgendaDay[][];
   mes: AgendaTotals;
   semana: AgendaTotals;
+  /** Aulas aguardando o "houve a aula?", mais antigas primeiro. */
+  pendentes: PendingClass[];
   porAluno: Array<{
     student: AgendaStudent;
     previstas: number;
     realizadas: number;
     faltas: number;
+    /** Onde o aluno está no pacote contratado. */
+    pacote: ReturnType<typeof currentCycle>;
   }>;
 }
 
@@ -447,8 +467,29 @@ export async function buildAgenda(professionalId: string, month: string): Promis
   const mes = emptyTotals();
   const semana = emptyTotals();
   const porAluno = new Map(
-    alunos.map((a) => [a.studentId, { student: a, previstas: 0, realizadas: 0, faltas: 0 }]),
+    alunos.map((a) => [
+      a.studentId,
+      {
+        student: a,
+        previstas: 0,
+        realizadas: 0,
+        faltas: 0,
+        pacote: currentCycle(byIdOrThrow(db.students, a.studentId), db.attendance),
+      },
+    ]),
   );
+
+  // "aula 4/12" por aluno e por dia. Numerar uma vez por aluno, e não dentro
+  // do laço dos dias, evita refazer a contagem do pacote 42 vezes por mês.
+  const contagens = new Map(
+    alunos.map((a) => [
+      a.studentId,
+      classCountsByDate(byIdOrThrow(db.students, a.studentId), db.attendance),
+    ]),
+  );
+
+  const pendentes = pendingConfirmations(db);
+  const pendentesPorDia = new Set(pendentes.map((p) => `${p.studentId}|${p.date}`));
 
   const weeks = monthGrid(month).map((week) =>
     week.map<AgendaDay>((date) => {
@@ -456,10 +497,21 @@ export async function buildAgenda(professionalId: string, month: string): Promis
       const inMonth = date.slice(0, 7) === month;
 
       // Só conta como previsto a partir da data de entrada do aluno.
-      const scheduled = alunos.filter((a) => {
-        const s = byId.get(a.studentId)!;
-        return s.trainingDays.includes(dow) && date >= s.startDate;
-      });
+      const scheduled = alunos
+        .filter((a) => {
+          const s = byId.get(a.studentId)!;
+          return s.trainingDays.includes(dow) && date >= s.startDate;
+        })
+        .map<AgendaSlot>((a) => {
+          const slot = db.classSchedule.find((c) => c.studentId === a.studentId && c.weekday === dow);
+          return { ...a, startTime: slot?.startTime ?? "", durationMin: slot?.durationMin ?? 60 };
+        })
+        // Quem tem hora marcada vem primeiro, na ordem do dia; sem hora, ao fim.
+        .sort((x, y) =>
+          x.startTime && y.startTime
+            ? x.startTime.localeCompare(y.startTime)
+            : x.startTime ? -1 : y.startTime ? 1 : x.name.localeCompare(y.name),
+        );
 
       const dayAttendance = db.attendance.filter(
         (x) => x.professionalId === professionalId && x.date === date,
@@ -506,6 +558,12 @@ export async function buildAgenda(professionalId: string, month: string): Promis
         }
       }
 
+      const counts: Record<string, ClassCount> = {};
+      for (const a of alunos) {
+        const c = contagens.get(a.studentId)?.get(date);
+        if (c) counts[a.studentId] = c;
+      }
+
       return {
         date,
         day: Number(date.slice(8)),
@@ -516,6 +574,10 @@ export async function buildAgenda(professionalId: string, month: string): Promis
         presentIds,
         absentIds,
         trainedIds,
+        pendingIds: scheduled
+          .filter((s) => pendentesPorDia.has(`${s.studentId}|${date}`))
+          .map((s) => s.studentId),
+        counts,
       };
     }),
   );
@@ -525,8 +587,17 @@ export async function buildAgenda(professionalId: string, month: string): Promis
     weeks,
     mes,
     semana,
+    pendentes,
     porAluno: [...porAluno.values()].filter((l) => l.student.ocupaHorario || l.previstas > 0),
   };
+}
+
+/** O aluno da lista, pelo id. A agenda só monta a lista com alunos que acabou
+ *  de ler do mesmo snapshot, então a ausência aqui seria defeito, não dado. */
+function byIdOrThrow(students: Student[], studentId: string): Student {
+  const s = students.find((x) => x.id === studentId);
+  if (!s) throw new Error(`Aluno ${studentId} fora do snapshot.`);
+  return s;
 }
 
 /* ------------------------------------------- calendário de frequência do aluno */
@@ -542,6 +613,14 @@ export interface StudentDay {
   absent: boolean;
   trained: boolean;
   workoutLabel: string | null;
+  /** 'HH:MM' da aula marcada neste dia. '' = sem hora. */
+  startTime: string;
+  /** "aula 4/12" deste dia, quando a aula descontou do pacote. */
+  count: ClassCount | null;
+  /** Por que não houve aula. '' quando houve, ou quando não há registro. */
+  reason: string;
+  /** Horário já passou e o personal ainda não respondeu. */
+  pending: boolean;
 }
 
 export interface StudentAttendance {
@@ -553,6 +632,8 @@ export interface StudentAttendance {
   faltas: number;
   extras: number;
   aproveitamento: number;
+  /** Onde o aluno está no pacote contratado: o "4/12" do topo da tela. */
+  pacote: ReturnType<typeof currentCycle>;
 }
 
 /** Frequência de um aluno num mês: previsto x realizado, dia a dia.
@@ -565,6 +646,13 @@ export async function buildStudentAttendance(studentId: string, month: string): 
 
   const today = todayISO();
   const ocupaHorario = student.modality !== "online";
+
+  const contagem = classCountsByDate(student, db.attendance);
+  const pendentes = new Set(
+    pendingConfirmations(db)
+      .filter((p) => p.studentId === studentId)
+      .map((p) => p.date),
+  );
 
   const sessionsByDate = new Map<string, string>();
   for (const s of db.workoutSessions) {
@@ -600,6 +688,8 @@ export async function buildStudentAttendance(studentId: string, month: string): 
         if (absent) faltas++;
       }
 
+      const slot = db.classSchedule.find((c) => c.studentId === studentId && c.weekday === dow);
+
       return {
         date,
         day: Number(date.slice(8)),
@@ -611,6 +701,10 @@ export async function buildStudentAttendance(studentId: string, month: string): 
         absent,
         trained,
         workoutLabel: sessionsByDate.get(date) ?? null,
+        startTime: record?.startTime || slot?.startTime || "",
+        count: contagem.get(date) ?? null,
+        reason: record?.reason ?? "",
+        pending: pendentes.has(date),
       };
     }),
   );
@@ -624,5 +718,6 @@ export async function buildStudentAttendance(studentId: string, month: string): 
     faltas,
     extras,
     aproveitamento: previstas ? Math.round((realizadas / previstas) * 100) : 0,
+    pacote: currentCycle(student, db.attendance),
   };
 }

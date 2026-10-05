@@ -6,11 +6,18 @@ import { Logo } from "@/components/logo";
 import { Avatar } from "@/components/ui";
 import { SideNav } from "@/components/side-nav";
 import { isAdmin } from "@/lib/admin";
+import { syncClassPrompts } from "@/lib/class-prompts";
 
 export default async function PersonalLayout({ children }: { children: React.ReactNode }) {
   const pro = await requirePersonal();
   const db = await getDb();
-  const unread = db.notifications.filter((n) => n.userId === pro.id && !n.read).length;
+
+  // As aulas que já terminaram e ninguém respondeu viram notificação aqui, na
+  // entrada do painel: é o caminho por onde o personal sempre passa. O cron da
+  // hospedagem faz a mesma varredura para quem não abriu o app no dia.
+  const novas = await syncClassPrompts(db, pro.id);
+  const unread =
+    db.notifications.filter((n) => n.userId === pro.id && !n.read).length + novas;
 
   return (
     <div className="flex min-h-dvh flex-col lg:flex-row">

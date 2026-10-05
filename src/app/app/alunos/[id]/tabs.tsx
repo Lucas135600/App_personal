@@ -11,6 +11,7 @@ import {
   Select, Stat, Textarea, toneForScore,
 } from "@/components/ui";
 import { WeekdayPicker } from "@/components/weekday-picker";
+import { AttendanceGrid, AttendanceLegend } from "@/components/attendance-calendar";
 import { PhotoCompare } from "@/components/photo-compare";
 import { estadoConsentimento } from "@/lib/consent";
 import { ResetPasswordButton } from "./reset-password";
@@ -23,8 +24,11 @@ import {
 import {
   addWorkoutExerciseAction, createAssessmentAction, createWorkoutAction,
   deleteWorkoutAction, removeWorkoutExerciseAction, replyCheckinAction,
-  saveAnamnesisAction, updateStudentAction, updateWorkoutExerciseAction,
+  saveAnamnesisAction, saveClassScheduleAction, updateStudentAction,
+  updateWorkoutExerciseAction,
 } from "@/lib/actions/personal";
+import { ocupaHorario } from "@/lib/classes";
+import type { ClassSchedule } from "@/lib/types";
 
 import { capitalizeFirst, SCALE_LABEL } from "@/lib/labels";
 
@@ -150,8 +154,84 @@ export async function OverviewTab({ view }: { view: StudentView }) {
             <Button type="submit" variant="ghost" size="sm">Salvar alterações</Button>
           </form>
         </Card>
+
+        {ocupaHorario(view.student) && (
+          <ClassScheduleCard
+            view={view}
+            schedule={db.classSchedule.filter((c) => c.studentId === view.student.id)}
+          />
+        )}
       </div>
     </div>
+  );
+}
+
+/* Horário da aula e tamanho do pacote.
+   O horário é por dia da semana porque é assim que a semana do personal é
+   montada: o mesmo aluno pode ter terça às 18h e quinta às 7h. Só aparecem os
+   dias que já estão na grade de treino — horário em dia que o aluno não treina
+   geraria cobrança de confirmação para uma aula que não existe. */
+function ClassScheduleCard({
+  view,
+  schedule,
+}: {
+  view: StudentView;
+  schedule: ClassSchedule[];
+}) {
+  const porDia = new Map(schedule.map((c) => [c.weekday, c]));
+  const duracao = schedule[0]?.durationMin ?? 60;
+  const dias = [...view.student.trainingDays].sort(
+    (a, b) => (a === 0 ? 7 : a) - (b === 0 ? 7 : b),
+  );
+
+  return (
+    <Card>
+      <SectionTitle>Aulas presenciais</SectionTitle>
+
+      {dias.length === 0 ? (
+        <EmptyState
+          title="Nenhum dia de treino na grade"
+          description="Marque os dias em “Dados do aluno” para poder definir os horários."
+        />
+      ) : (
+        <form action={saveClassScheduleAction} className="space-y-3">
+          <input type="hidden" name="studentId" value={view.student.id} />
+
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Aulas no pacote" hint="0 = sem pacote">
+              <Input
+                name="monthlyClasses"
+                type="number"
+                min={0}
+                max={99}
+                defaultValue={view.student.monthlyClasses}
+              />
+            </Field>
+            <Field label="Duração (min)">
+              <Input name="durationMin" type="number" min={15} max={300} step={5} defaultValue={duracao} />
+            </Field>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            {dias.map((d) => (
+              <Field key={d} label={`${WEEKDAY_LABELS[d]} — horário`}>
+                <Input name={`time_${d}`} type="time" defaultValue={porDia.get(d)?.startTime ?? ""} />
+              </Field>
+            ))}
+          </div>
+
+          <Button type="submit" variant="ghost" size="sm">Salvar horários</Button>
+
+          <p className="text-xs text-ink-500">
+            Depois que o horário da aula termina, você recebe a pergunta “houve a aula?”. Ao
+            confirmar, ela entra como aula {view.student.monthlyClasses
+              ? `N/${view.student.monthlyClasses}`
+              : "do pacote"}{" "}
+            na sua agenda e na do aluno. Dia sem horário continua na grade, só não gera a pergunta.
+          </p>
+        </form>
+      )}
+    </Card>
   );
 }
 
@@ -633,8 +713,6 @@ export async function HabitsTab({ view }: { view: StudentView }) {
 
 /* --------------------------------------------------------------- histórico */
 
-const ORDEM_SEMANA = [1, 2, 3, 4, 5, 6, 0]; // segunda a domingo
-
 export async function HistoryTab({ view, month }: { view: StudentView; month: string }) {
   const db = await getDb();
   const freq = await buildStudentAttendance(view.student.id, month);
@@ -742,94 +820,32 @@ async function AttendanceCalendar({
         <Stat label="Previstas" value={freq.previstas} />
         <Stat label="Realizadas" value={freq.realizadas} tone="accent" />
         <Stat label="Faltas" value={freq.faltas || "--"} tone={freq.faltas ? "warn" : "neutral"} />
-        <Stat
-          label="Aproveitamento"
-          value={freq.previstas ? `${freq.aproveitamento}%` : "--"}
-          tone={freq.previstas ? toneForScore(freq.aproveitamento) : "neutral"}
-        />
+        {freq.pacote.total > 0 ? (
+          <Stat
+            label="Pacote"
+            value={`${freq.pacote.position}/${freq.pacote.total}`}
+            sub={freq.pacote.fechado ? "pacote completo" : `faltam ${freq.pacote.restantes}`}
+            tone={freq.pacote.fechado ? "ok" : "neutral"}
+          />
+        ) : (
+          <Stat
+            label="Aproveitamento"
+            value={freq.previstas ? `${freq.aproveitamento}%` : "--"}
+            tone={freq.previstas ? toneForScore(freq.aproveitamento) : "neutral"}
+          />
+        )}
       </div>
 
       <div className="overflow-x-auto px-5">
         <div className="min-w-[360px] max-w-[460px]">
-          <div className="grid grid-cols-7 gap-1.5 pb-1.5">
-            {ORDEM_SEMANA.map((d) => (
-              <div
-                key={d}
-                className="text-center text-[10px] font-semibold uppercase tracking-wider text-ink-500"
-              >
-                {WEEKDAY_LABELS[d]}
-              </div>
-            ))}
-          </div>
-          <div className="space-y-1.5">
-            {freq.weeks.map((week) => (
-              <div key={week[0].date} className="grid grid-cols-7 gap-1.5">
-                {week.map((day) => (
-                  <AttendanceCell key={day.date} day={day} ocupaHorario={freq.ocupaHorario} />
-                ))}
-              </div>
-            ))}
-          </div>
+          <AttendanceGrid weeks={freq.weeks} ocupaHorario={freq.ocupaHorario} />
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-5 pb-5 pt-4 text-[11px] text-ink-500">
-        <Legend className="bg-lime-accent" label="treinou" />
-        <Legend className="border-2 border-ink-600" label="previsto, sem registro" />
-        <Legend className="bg-danger/70" label="falta" />
-        <Legend className="bg-ink-800" label="sem treino previsto" />
-        {freq.extras > 0 && (
-          <span className="ml-auto">
-            {freq.extras} {freq.extras === 1 ? "treino extra" : "treinos extras"} fora da grade
-          </span>
-        )}
+      <div className="px-5 pb-5 pt-4">
+        <AttendanceLegend extras={freq.extras} />
       </div>
     </Card>
   );
 }
 
-function Legend({ className, label }: { className: string; label: string }) {
-  return (
-    <span className="flex items-center gap-1.5">
-      <span className={`inline-block size-3 rounded-[5px] ${className}`} />
-      {label}
-    </span>
-  );
-}
-
-function AttendanceCell({ day, ocupaHorario }: { day: StudentDay; ocupaHorario: boolean }) {
-  const feito = ocupaHorario ? day.present || day.trained : day.trained;
-  const pendente = day.scheduled && !feito && !day.absent && !day.isFuture;
-
-  const estado = feito
-    ? "bg-lime-accent text-ink-950"
-    : day.absent
-      ? "bg-danger/70 text-ink-950"
-      : pendente
-        ? "border-2 border-ink-600 text-ink-400"
-        : day.scheduled
-          ? "border-2 border-dashed border-ink-700 text-ink-500"
-          : "bg-ink-850 text-ink-600";
-
-  const titulo = feito
-    ? `${formatDate(day.date)} — treinou${day.workoutLabel ? ` (treino ${day.workoutLabel})` : ""}`
-    : day.absent
-      ? `${formatDate(day.date)} — falta`
-      : day.scheduled
-        ? `${formatDate(day.date)} — previsto`
-        : formatDate(day.date);
-
-  return (
-    <div
-      title={titulo}
-      className={`flex aspect-square flex-col items-center justify-center rounded-lg text-[11px] font-bold tabular-nums ${estado} ${
-        day.inMonth ? "" : "opacity-30"
-      } ${day.isToday ? "ring-2 ring-lime-accent ring-offset-2 ring-offset-ink-900" : ""}`}
-    >
-      {day.day}
-      {feito && day.workoutLabel && (
-        <span className="text-[8px] font-extrabold opacity-70">{day.workoutLabel}</span>
-      )}
-    </div>
-  );
-}

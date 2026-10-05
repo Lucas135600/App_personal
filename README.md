@@ -82,14 +82,28 @@ Apaga `data/` por completo. O seed é recriado no próximo acesso.
 - **Check-ins** — painel semanal com respondidos / pendentes / atrasados e resposta do personal.
 - **Avaliação física** — peso, altura, IMC calculado, gordura, massa magra, 6 circunferências,
   gráficos temporais.
-- **Agenda** — calendário mensal navegável: cada dia mostra quem treina, com presença confirmada
-  (bolinha cheia) ou apenas prevista (bolinha vazada). Clicar num dia abre o painel para registrar
-  presença ou falta **naquela data**, não só hoje. Contadores de aulas da semana e do mês, mais uma
-  tabela de previstas × realizadas por aluno — a base para fechar cobrança.
+- **Agenda** — calendário mensal navegável: cada dia mostra quem treina, o horário de cada aula e
+  a presença confirmada (bolinha cheia) ou apenas prevista (bolinha vazada). Clicar num dia abre o
+  painel para responder **naquela data**, não só hoje. Contadores de aulas da semana e do mês, mais
+  uma tabela de previstas × realizadas × pacote por aluno — a base para fechar cobrança.
 
   A contagem separa **aulas presenciais** (presencial e híbrido, que ocupam seu horário) de
   **treinos online** (que o aluno registra sozinho). Somar os dois daria um número inútil para medir
-  carga de trabalho. Aula presencial só conta como realizada quando você registra a presença.
+  carga de trabalho.
+- **Aula presencial com horário, confirmação e pacote** — na ficha do aluno você define o
+  **horário por dia da semana** (terça às 18h, quinta às 7h) e quantas **aulas o pacote tem**.
+  Depois que o horário da aula termina, chega a pergunta **“houve a aula?”**:
+
+  - **Houve** → a aula entra como `aula 4/12` na sua agenda e no calendário do aluno.
+  - **Não houve** → você escolhe o motivo, e ele decide o pacote: *falta do aluno* desconta (o
+    horário foi reservado e perdido); *cancelada* e *remarcada* não descontam.
+
+  O ciclo não é o mês civil: fecha quando o pacote completa. Depois de `12/12`, a próxima aula
+  volta a ser `1/12`.
+
+  A pendência aparece em dois lugares de propósito — como notificação no sininho e como bloco fixo
+  no topo da Agenda. A notificação some quando você marca como lida; a aula sem resposta não pode
+  sumir junto.
 - **Avisos** — central que junta duas coisas: os *alertas* calculados na hora pelo motor de regras
   ("quem precisa de ação") e a *atividade recente* dos alunos (treino concluído, check-in
   respondido, foto nova, anamnese preenchida). O contador de não lidos fica no menu.
@@ -97,6 +111,9 @@ Apaga `data/` por completo. O seed é recriado no próximo acesso.
 
 ### Aplicativo do aluno (`/aluno`)
 
+- **Minhas aulas** (`/aluno/agenda`) — o calendário do aluno presencial, com a mesma numeração que
+  o personal confirma: `aula 4/12`, quantas faltam para fechar o pacote e o motivo de cada aula que
+  não aconteceu. Só de leitura — quem responde é o personal. O card do Ínício leva até ele.
 - **Início** — “o que fazer hoje”: treino, check-in, foto do mês, hábitos, com barra de adesão
   da semana.
 - **Execução do treino** — cronômetro de sessão, série a série com carga/reps/RPE, carga anterior
@@ -308,6 +325,20 @@ npm run criar:personal
 
    A senha é digitada no terminal, não aparece na tela e não vai para arquivo nenhum. Depois é só
    entrar no app e cadastrar os alunos reais pela interface.
+
+7. Defina **`CRON_SECRET`** nas variáveis da Vercel. É a chave do cron que pergunta “houve a
+   aula?” depois do horário:
+
+```bash
+node -e "console.log(require('crypto').randomBytes(24).toString('hex'))"
+```
+
+   O `vercel.json` já agenda `/api/cron/aulas` de hora em hora, e a Vercel manda a chave em
+   `Authorization: Bearer`. **Sem a variável a rota responde 503 e não roda** — preferimos recusar
+   a deixar um endereço público disparando escrita.
+
+   O painel do personal faz a mesma varredura toda vez que ele abre o app, então o cron é a rede
+   de segurança para o dia em que ele não abre — não a única via.
 
 ### Onde ficam as fotos
 

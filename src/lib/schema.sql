@@ -363,3 +363,55 @@ CREATE INDEX IF NOT EXISTS idx_challenge_members_student ON challenge_members(st
 CREATE INDEX IF NOT EXISTS idx_challenge_members_challenge ON challenge_members(challenge_id);
 CREATE INDEX IF NOT EXISTS idx_challenge_entries_challenge ON challenge_entries(challenge_id, date);
 CREATE INDEX IF NOT EXISTS idx_plans_ativos ON subscription_plans(active, order_index);
+
+/* ------------------------------------------------- aulas presenciais (horário) */
+
+/* Horário fixo da aula presencial, um registro por dia da semana.
+   Ficou em tabela própria, e não como coluna em students, porque o mesmo aluno
+   pode treinar terça às 18h e quinta às 7h — um único horário por aluno
+   obrigaria a mentir em um dos dois dias.
+
+   `students.training_days` continua sendo a grade (quais dias o aluno treina);
+   esta tabela diz A QUE HORAS, e só existe para quem ocupa horário do personal.
+   Dia sem linha aqui é dia de treino sem hora marcada: aparece na agenda, mas
+   não gera cobrança de confirmação, porque não há horário para terminar.
+
+   start_time é TEXT 'HH:MM' no fuso do personal, pelo mesmo motivo que as datas
+   de calendário são DATE: é um horário comercial ("terça às 18h"), não um
+   instante no tempo, e guardar como timestamptz faria a aula mudar de hora
+   conforme o servidor. */
+CREATE TABLE IF NOT EXISTS class_schedule (
+  id              TEXT PRIMARY KEY,
+  student_id      TEXT NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+  professional_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  weekday         SMALLINT NOT NULL CHECK (weekday BETWEEN 0 AND 6),
+  start_time      TEXT NOT NULL CHECK (start_time ~ '^[0-2][0-9]:[0-5][0-9]$'),
+  duration_min    SMALLINT NOT NULL DEFAULT 60 CHECK (duration_min > 0),
+  UNIQUE (student_id, weekday)
+);
+
+/* Tamanho do pacote de aulas contratado. 0 = aluno sem pacote (online, ou
+   presencial em avulso), e aí a numeração "aula 4/12" simplesmente não aparece.
+   O ciclo não é o mês civil: fecha quando completa o pacote — ao bater 12/12, a
+   aula seguinte volta a ser 1/12. É assim que o aluno conta o que pagou. */
+ALTER TABLE students ADD COLUMN IF NOT EXISTS monthly_classes SMALLINT NOT NULL DEFAULT 0;
+
+/* A confirmação da aula pelo personal, em cima da presença que já existia.
+
+   reason: '' aula dada | 'falta_aluno' | 'cancelada' | 'remarcada'
+   consumes: se a aula saiu do pacote contratado.
+
+   Os dois andam juntos mas não são a mesma coisa: aula dada e falta do aluno
+   descontam do pacote (o horário foi reservado e perdido); cancelamento e
+   remarcação não descontam. Guardar `consumes` em vez de deduzir de `reason`
+   deixa o personal corrigir um caso fora da regra sem o app discordar depois.
+
+   DEFAULT TRUE preenche o histórico que já existia: presença contava aula, e
+   falta registrada antes desta tela era falta do aluno. */
+ALTER TABLE attendance ADD COLUMN IF NOT EXISTS reason       TEXT NOT NULL DEFAULT '';
+ALTER TABLE attendance ADD COLUMN IF NOT EXISTS consumes     BOOLEAN NOT NULL DEFAULT TRUE;
+ALTER TABLE attendance ADD COLUMN IF NOT EXISTS start_time   TEXT NOT NULL DEFAULT '';
+ALTER TABLE attendance ADD COLUMN IF NOT EXISTS confirmed_at TIMESTAMPTZ;
+
+CREATE INDEX IF NOT EXISTS idx_class_schedule_professional ON class_schedule(professional_id, weekday);
+CREATE INDEX IF NOT EXISTS idx_class_schedule_student ON class_schedule(student_id);

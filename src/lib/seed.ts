@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import type {
   Anamnesis, Assessment, Attendance, Challenge, ChallengeEntry, ChallengeMember,
-  Checkin, Consent, Database, Exercise, HabitLog,
+  Checkin, ClassSchedule, Consent, Database, Exercise, HabitLog,
   HabitStatus, HabitTarget,
   Modality, Notification, Student, SubscriptionPlan, TrainingPlan, User, Workout, WorkoutExercise,
   WorkoutSession, WorkoutSet,
@@ -109,6 +109,15 @@ const STUDENTS: SeedStudent[] = [
   { name: "Carla Souza", email: "carla@aluno.com", birthDate: "1983-09-30", phone: "(65) 99388-1120", modality: "online", goal: "Saúde e qualidade de vida", color: "#fbbf24", height: 1.6, adherence: 0.68, checkinRate: 0.5, startWeight: 66.3, trend: -0.18, trainingDays: [2, 4], lastAssessmentDaysAgo: 88, notes: "Retomando após pausa. Progressão conservadora." },
 ];
 
+/* Horário fixo da aula e tamanho do pacote, para quem ocupa horário do
+   personal. Rafael treina cedo na quarta e à noite nos outros dias: é
+   justamente o caso que um horário único por aluno não conseguiria guardar. */
+const AULAS_PRESENCIAIS: Record<string, { pacote: number; horarios: Record<number, string> }> = {
+  "joao@aluno.com": { pacote: 12, horarios: { 1: "18:00", 3: "18:00", 5: "18:00" } },
+  "ana@aluno.com": { pacote: 20, horarios: { 1: "07:00", 2: "07:00", 3: "07:00", 4: "07:00", 5: "07:00" } },
+  "rafael@aluno.com": { pacote: 12, horarios: { 1: "19:00", 3: "06:30", 5: "19:00" } },
+};
+
 function anamnesisAnswers(s: SeedStudent) {
   return {
     objetivo_principal: s.goal,
@@ -152,6 +161,7 @@ export function buildSeed(): Database {
   const challengeMembers: ChallengeMember[] = [];
   const challengeEntries: ChallengeEntry[] = [];
   const attendance: Attendance[] = [];
+  const classSchedule: ClassSchedule[] = [];
   const anamnesis: Anamnesis[] = [];
   const notifications: Notification[] = [];
   const photoInputs: PhotoSeedInput[] = [];
@@ -199,12 +209,19 @@ export function buildSeed(): Database {
       role: "student", professionalId: PRO_ID, avatarColor: s.color,
       createdAt: addDays(today, -180), mustChangePassword: false, isAdmin: false,
     });
+    const aulas = AULAS_PRESENCIAIS[s.email];
     students.push({
       id: studentId, userId, professionalId: PRO_ID, birthDate: s.birthDate,
       phone: s.phone, modality: s.modality, goal: s.goal, status: "ativo",
       startDate: addDays(today, -180), trainingDays: s.trainingDays, notes: s.notes,
-      publicProfile: true,
+      publicProfile: true, monthlyClasses: aulas?.pacote ?? 0,
     });
+    for (const [weekday, startTime] of Object.entries(aulas?.horarios ?? {})) {
+      classSchedule.push({
+        id: sid("cls"), studentId, professionalId: PRO_ID,
+        weekday: Number(weekday), startTime, durationMin: 60,
+      });
+    }
     anamnesis.push({
       id: sid("anm"), studentId, professionalId: PRO_ID,
       answeredAt: addDays(today, -178), answers: anamnesisAnswers(s),
@@ -245,10 +262,20 @@ export function buildSeed(): Database {
       if (!s.trainingDays.includes(dow)) continue;
 
       const trained = rnd() < s.adherence && !(s.name === "Pedro Alves" && d < 7);
-      if (s.modality !== "online") {
+      // As aulas dos últimos dois dias ficam sem resposta de propósito: é o
+      // estado "aguardando confirmação" que a agenda precisa mostrar, e que só
+      // aparece se alguém estiver nele.
+      if (s.modality !== "online" && d > 2) {
+        // Uma falta a cada tantas é cancelamento, não falta do aluno — o
+        // cancelamento não desconta do pacote, e a tela precisa dos dois casos.
+        const cancelada = !trained && d % 17 === 0;
         attendance.push({
           id: sid("att"), studentId, professionalId: PRO_ID, date,
           present: trained, notes: "",
+          reason: trained ? "" : cancelada ? "cancelada" : "falta_aluno",
+          consumes: trained || !cancelada,
+          startTime: aulas?.horarios[dow] ?? "",
+          confirmedAt: null,
         });
       }
       if (!trained) continue;
@@ -450,6 +477,6 @@ export function buildSeed(): Database {
     challengeMembers,
     challengeEntries,
     subscriptionPlans,
-    habitLogs, attendance, anamnesis, notifications,
+    habitLogs, attendance, classSchedule, anamnesis, notifications,
   };
 }

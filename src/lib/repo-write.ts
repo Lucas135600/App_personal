@@ -2,7 +2,7 @@ import { sql, sqlOne, transaction } from "./sql";
 import { id } from "./db";
 import { currentWeekStart, todayISO } from "./dates";
 import type {
-  CheckinAnswers, Measurements, Modality, PhotoAngle, StudentStatus,
+  AbsenceReason, CheckinAnswers, Measurements, Modality, PhotoAngle, StudentStatus,
 } from "./types";
 
 /* Escritas. Cada função é uma operação de negócio inteira — quando ela toca
@@ -342,15 +342,82 @@ export async function insertAssessment(a: {
 
 /* --------------------------------------------------------------- presença */
 
+export interface RegistroAula {
+  present: boolean;
+  reason: AbsenceReason;
+  /** Se a aula desconta do pacote contratado. */
+  consumes: boolean;
+  /** Horário em que estava marcada, 'HH:MM'. '' quando não havia hora. */
+  startTime: string;
+}
+
+/** Resposta do personal para uma aula: houve, não houve e por quê.
+ *
+ * `confirmed_at` só é gravado aqui — é o que separa a aula respondida da aula
+ * que ninguém olhou, e é o que impede a mesma pendência de voltar amanhã. */
 export async function markAttendance(
-  studentId: string, professionalId: string, date: string, present: boolean,
+  studentId: string, professionalId: string, date: string, registro: RegistroAula,
 ) {
   await sql(
-    `INSERT INTO attendance (id, student_id, professional_id, date, present)
-     VALUES ($1, $2, $3, $4, $5)
-     ON CONFLICT (student_id, date) DO UPDATE SET present = EXCLUDED.present`,
-    [id("att"), studentId, professionalId, date, present],
+    `INSERT INTO attendance (id, student_id, professional_id, date, present, reason, consumes, start_time, confirmed_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
+     ON CONFLICT (student_id, date) DO UPDATE SET
+       present      = EXCLUDED.present,
+       reason       = EXCLUDED.reason,
+       consumes     = EXCLUDED.consumes,
+       -- um registro antigo sem hora não perde a hora quando é corrigido
+       start_time   = CASE WHEN EXCLUDED.start_time = '' THEN attendance.start_time
+                           ELSE EXCLUDED.start_time END,
+       confirmed_at = NOW()`,
+    [
+      id("att"), studentId, professionalId, date,
+      registro.present, registro.reason, registro.consumes, registro.startTime,
+    ],
   );
+}
+
+/* ------------------------------------------------- horário das aulas e pacote */
+
+export interface HorarioAula {
+  weekday: number;
+  startTime: string;
+  durationMin: number;
+}
+
+/** Substitui a grade de horários do aluno de uma vez.
+ *
+ * Apaga e regrava dentro de uma transação em vez de casar linha a linha: a
+ * grade é curta (no máximo sete linhas) e o estado final é o que a tela mandou.
+ * Casar linha a linha só abriria caminho para sobrar um horário de um dia que
+ * o personal tirou da grade. */
+export async function saveClassSchedule(
+  studentId: string, professionalId: string, horarios: HorarioAula[], monthlyClasses: number,
+) {
+  await transaction(async (q) => {
+    await q("DELETE FROM class_schedule WHERE student_id = $1", [studentId]);
+    for (const h of horarios) {
+      await q(
+        `INSERT INTO class_schedule (id, student_id, professional_id, weekday, start_time, duration_min)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [id("cls"), studentId, professionalId, h.weekday, h.startTime, h.durationMin],
+      );
+    }
+    await q("UPDATE students SET monthly_classes = $2 WHERE id = $1", [studentId, monthlyClasses]);
+  });
+}
+
+/** Notificação que não pode duplicar: a mesma aula não cobra duas vezes.
+ *  O link identifica a aula, então ele serve de chave. Devolve se criou. */
+export async function notifyOnce(
+  userId: string, title: string, body: string, link: string,
+): Promise<boolean> {
+  const existe = await sqlOne(
+    "SELECT 1 AS um FROM notifications WHERE user_id = $1 AND link = $2 LIMIT 1",
+    [userId, link],
+  );
+  if (existe) return false;
+  await notify(userId, title, body, link);
+  return true;
 }
 
 /* ---------------------------------------------------------------- hábitos */

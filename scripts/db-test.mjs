@@ -182,6 +182,40 @@ await q(`INSERT INTO users (id,email,password_hash,name,role,created_at)
 r = await q("SELECT count(*)::int n FROM students WHERE professional_id='pro2'");
 ok(r[0].n === 0, "o outro profissional não enxerga o aluno s1");
 
+console.log("\n— horário da aula: um por dia da semana, hora válida");
+await q(`INSERT INTO class_schedule (id,student_id,professional_id,weekday,start_time)
+         VALUES ('c1','s1','pro',1,'18:00')`);
+let recusouDuplicata = false;
+try {
+  await q(`INSERT INTO class_schedule (id,student_id,professional_id,weekday,start_time)
+           VALUES ('c2','s1','pro',1,'19:00')`);
+} catch { recusouDuplicata = true; }
+ok(recusouDuplicata, "dois horários no mesmo dia da semana são rejeitados");
+
+let recusouHora = false;
+try {
+  await q(`INSERT INTO class_schedule (id,student_id,professional_id,weekday,start_time)
+           VALUES ('c3','s1','pro',2,'18h')`);
+} catch { recusouHora = true; }
+ok(recusouHora, "hora fora do formato HH:MM é rejeitada");
+
+console.log("\n— aula: histórico antigo continua descontando do pacote");
+await q(`INSERT INTO attendance (id,student_id,professional_id,date,present)
+         VALUES ('a9','s1','pro',CURRENT_DATE - 20,TRUE)`);
+r = await q("SELECT consumes, reason FROM attendance WHERE id='a9'");
+ok(r[0].consumes === true, "registro sem motivo nasce descontando o pacote");
+ok(r[0].reason === "", "registro sem motivo nasce como aula realizada");
+
+await q(`INSERT INTO attendance (id,student_id,professional_id,date,present,reason,consumes)
+         VALUES ('a10','s1','pro',CURRENT_DATE - 19,FALSE,'cancelada',FALSE)`);
+r = await q("SELECT count(*)::int n FROM attendance WHERE id IN ('a9','a10') AND consumes");
+ok(r[0].n === 1, `aula cancelada não entra na conta do pacote (${r[0].n})`);
+
+console.log("\n— pacote: apagar o aluno não deixa horário órfão");
+await q("DELETE FROM students WHERE id='s1'");
+r = await q("SELECT count(*)::int n FROM class_schedule");
+ok(r[0].n === 0, `grade de horários removida junto (${r[0].n})`);
+
 await db.close();
 fs.rmSync(tmp, { recursive: true, force: true });
 

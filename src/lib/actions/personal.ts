@@ -8,7 +8,9 @@ import * as repo from "@/lib/repo-write";
 import { findUserById } from "@/lib/repo";
 import { addDays, todayISO } from "@/lib/dates";
 import { faltandoObrigatorios, rotuloCurto } from "@/lib/anamnesis";
-import type { Modality, StudentStatus } from "@/lib/types";
+import { consumesPackage, formatTime, scheduledTime } from "@/lib/classes";
+import { getDb } from "@/lib/scope";
+import type { AbsenceReason, Modality, StudentStatus } from "@/lib/types";
 
 const COLORS = ["#4ade80", "#f472b6", "#fb923c", "#38bdf8", "#a78bfa", "#fbbf24", "#2dd4bf", "#f9a8d4"];
 
@@ -273,20 +275,71 @@ export async function replyCheckinAction(formData: FormData) {
 
 /* -------------------------------------------------------------- presencial */
 
+const MOTIVOS: AbsenceReason[] = ["falta_aluno", "cancelada", "remarcada"];
+
+/** Resposta do personal à pergunta "houve a aula?".
+ *
+ * `present=1` grava a aula realizada. `present=0` exige o motivo, porque é o
+ * motivo que decide se a aula sai do pacote: falta do aluno sai (o horário foi
+ * reservado e perdido), cancelamento e remarcação não saem. */
 export async function markAttendanceAction(formData: FormData) {
   const pro = await requirePersonal();
   const studentId = str(formData.get("studentId"));
   await assertOwnStudent(pro.id, studentId);
 
-  await repo.markAttendance(
-    studentId, pro.id,
-    str(formData.get("date")) || todayISO(),
-    str(formData.get("present")) === "1",
-  );
+  const date = str(formData.get("date")) || todayISO();
+  const present = str(formData.get("present")) === "1";
+
+  const motivo = str(formData.get("reason")) as AbsenceReason;
+  const reason: AbsenceReason = present ? "" : MOTIVOS.includes(motivo) ? motivo : "falta_aluno";
+
+  const db = await getDb();
+  const startTime = scheduledTime(db.classSchedule, studentId, date);
+
+  await repo.markAttendance(studentId, pro.id, date, {
+    present,
+    reason,
+    consumes: consumesPackage(present, reason),
+    startTime,
+  });
 
   revalidatePath(`/app/alunos/${studentId}`);
   revalidatePath("/app/agenda");
   revalidatePath("/app");
+  revalidatePath("/aluno");
+  revalidatePath("/aluno/agenda");
+}
+
+/* ------------------------------------------- horário das aulas e pacote mensal */
+
+/** Grava a grade de horários do aluno e o tamanho do pacote.
+ *
+ * Só aceita horário para dia que está na grade de treino: horário num dia que
+ * o aluno não treina geraria uma cobrança de confirmação que nunca deveria
+ * existir. Dia marcado sem hora continua valendo — aparece na agenda, só não
+ * dispara a pergunta automática. */
+export async function saveClassScheduleAction(formData: FormData) {
+  const pro = await requirePersonal();
+  const studentId = str(formData.get("studentId"));
+  const student = await assertOwnStudent(pro.id, studentId);
+
+  const duracao = Math.min(300, Math.max(15, Number(str(formData.get("durationMin"))) || 60));
+  const pacote = Math.min(99, Math.max(0, Number(str(formData.get("monthlyClasses"))) || 0));
+
+  const horarios = student.trainingDays
+    .map((weekday) => ({
+      weekday,
+      startTime: str(formData.get(`time_${weekday}`)),
+      durationMin: duracao,
+    }))
+    .filter((h) => /^([01]\d|2[0-3]):[0-5]\d$/.test(h.startTime));
+
+  await repo.saveClassSchedule(studentId, pro.id, horarios, pacote);
+
+  revalidatePath(`/app/alunos/${studentId}`);
+  revalidatePath("/app/agenda");
+  revalidatePath("/aluno");
+  revalidatePath("/aluno/agenda");
 }
 
 /* --------------------------------------------------------------- anamnese */

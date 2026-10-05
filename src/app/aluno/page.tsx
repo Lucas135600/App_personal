@@ -2,7 +2,10 @@ import Link from "next/link";
 import { requireStudent } from "@/lib/auth";
 import { getDb } from "@/lib/scope";
 import { buildStudentView, nextWorkoutFor, resolveWorkout } from "@/lib/queries";
-import { currentMonth, formatMonth, relativeDays, todayISO } from "@/lib/dates";
+import {
+  currentMonth, formatMonth, parseISODate, relativeDays, todayISO, WEEKDAY_LABELS,
+} from "@/lib/dates";
+import { currentCycle, formatTime, nextOccurrence, ocupaHorario } from "@/lib/classes";
 import { Badge, Card, LinkButton, Progress, SectionTitle, toneForScore } from "@/components/ui";
 import { Logo } from "@/components/logo";
 
@@ -31,6 +34,11 @@ export default async function StudentHome() {
 
   const todo = [checkinPending, photoPending, anamnesisPending, !trainedToday].filter(Boolean).length;
 
+  // Aulas presenciais: o pacote contratado e a próxima aula com hora marcada.
+  const pacote = currentCycle(student, db.attendance);
+  const proxima = ocupaHorario(student) ? nextOccurrence(student, db.classSchedule) : null;
+  const mostraAulas = ocupaHorario(student) && (pacote.total > 0 || proxima !== null);
+
   return (
     <div className="space-y-5 lb-enter">
       <header className="flex items-center justify-between">
@@ -53,6 +61,38 @@ export default async function StudentHome() {
           {todo === 0 ? "Tudo em dia. Bom trabalho." : `${todo} ${todo === 1 ? "pendência" : "pendências"} para hoje`}
         </p>
       </Card>
+
+      {mostraAulas && (
+        <Link href="/aluno/agenda" className="block">
+          <Card className="transition-colors hover:border-ink-600">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-400">
+                  Aulas presenciais
+                </p>
+                {pacote.total > 0 ? (
+                  <p className="mt-1 text-2xl font-bold tabular-nums">
+                    {pacote.position}
+                    <span className="text-ink-500">/{pacote.total}</span>
+                  </p>
+                ) : (
+                  <p className="mt-1 text-lg font-bold">Sem pacote definido</p>
+                )}
+                <p className="mt-1 text-xs text-ink-500">
+                  {proxima
+                    ? `Próxima: ${WEEKDAY_LABELS[parseISODate(proxima.date).getDay()].toLowerCase()}, ${formatTime(proxima.startTime)}`
+                    : "Nenhuma aula marcada nos próximos dias"}
+                </p>
+              </div>
+              {pacote.total > 0 && (
+                <Badge tone={pacote.fechado ? "ok" : "accent"}>
+                  {pacote.fechado ? "pacote completo" : `faltam ${pacote.restantes}`}
+                </Badge>
+              )}
+            </div>
+          </Card>
+        </Link>
+      )}
 
       <section>
         <SectionTitle>O que fazer hoje</SectionTitle>

@@ -2,11 +2,14 @@ import Link from "next/link";
 import { requirePersonal } from "@/lib/auth";
 import { buildAgenda, type AgendaDay } from "@/lib/queries";
 import { markAttendanceAction } from "@/lib/actions/personal";
+import { classLabel, formatTime, type PendingClass } from "@/lib/classes";
 import {
-  addMonths, currentMonth, formatDate, formatMonthLong, todayISO, WEEKDAY_LABELS,
+  addMonths, currentMonth, formatDate, formatMonthLong, formatShortDate, todayISO, WEEKDAY_LABELS,
 } from "@/lib/dates";
 import { capitalizeFirst, MODALITY_LABEL } from "@/lib/labels";
-import { Avatar, Badge, Button, Card, cx, EmptyState, SectionTitle, Stat } from "@/components/ui";
+import {
+  Avatar, Badge, Button, Card, cx, EmptyState, SectionTitle, Select, Stat,
+} from "@/components/ui";
 
 const ORDEM_SEMANA = [1, 2, 3, 4, 5, 6, 0]; // segunda a domingo
 
@@ -63,6 +66,8 @@ export default async function AgendaPage({
           tone={agenda.mes.faltas ? "warn" : "ok"}
         />
       </div>
+
+      {agenda.pendentes.length > 0 && <PendingCard pendentes={agenda.pendentes} />}
 
       <Card padded={false}>
         <div className="flex items-center justify-between gap-3 px-5 py-4">
@@ -142,11 +147,12 @@ export default async function AgendaPage({
                   <th className="px-3 py-2.5 font-semibold">Previstas</th>
                   <th className="px-3 py-2.5 font-semibold">Realizadas</th>
                   <th className="px-3 py-2.5 font-semibold">Faltas</th>
+                  <th className="px-3 py-2.5 font-semibold">Pacote</th>
                   <th className="px-5 py-2.5 font-semibold">Aproveitamento</th>
                 </tr>
               </thead>
               <tbody>
-                {agenda.porAluno.map(({ student, previstas, realizadas, faltas }) => {
+                {agenda.porAluno.map(({ student, previstas, realizadas, faltas, pacote }) => {
                   const pct = previstas ? Math.round((realizadas / previstas) * 100) : 0;
                   return (
                     <tr key={student.studentId} className="border-b border-ink-850 last:border-0">
@@ -163,6 +169,9 @@ export default async function AgendaPage({
                       <td className="px-3 py-3 tabular-nums">{previstas}</td>
                       <td className="px-3 py-3 tabular-nums text-lime-accent">{realizadas}</td>
                       <td className="px-3 py-3 tabular-nums">{faltas || "--"}</td>
+                      <td className="px-3 py-3 tabular-nums text-ink-300">
+                        {pacote.total ? `${pacote.position}/${pacote.total}` : "--"}
+                      </td>
                       <td className="px-5 py-3 tabular-nums text-ink-300">
                         {previstas ? `${pct}%` : "--"}
                       </td>
@@ -174,8 +183,10 @@ export default async function AgendaPage({
           </div>
         )}
         <p className="px-5 pb-5 pt-3 text-xs text-ink-500">
-          Aula presencial conta quando você registra a presença. Aluno online não entra nesta
-          contagem porque não ocupa horário — os treinos dele aparecem no indicador separado.
+          Aula presencial conta quando você confirma que ela aconteceu. O pacote mostra em que
+          ponto do contratado o aluno está e fecha ao completar — depois de 12/12, a próxima aula
+          volta a ser 1/12. Falta do aluno desconta do pacote; aula cancelada ou remarcada, não.
+          Aluno online não entra nesta contagem porque não ocupa horário.
         </p>
       </Card>
     </div>
@@ -193,6 +204,7 @@ function DayCell({
 }) {
   const presenciais = day.scheduled.filter((s) => s.ocupaHorario);
   const feitas = presenciais.filter((s) => day.presentIds.includes(s.studentId)).length;
+  const horarios = presenciais.map((s) => formatTime(s.startTime)).filter(Boolean);
 
   return (
     <Link
@@ -217,11 +229,23 @@ function DayCell({
           {day.day}
         </span>
         {presenciais.length > 0 && (
-          <span className="text-[10px] tabular-nums text-ink-500">
+          <span
+            className={cx(
+              "text-[10px] tabular-nums",
+              day.pendingIds.length ? "font-bold text-warn" : "text-ink-500",
+            )}
+          >
             {day.isFuture ? presenciais.length : `${feitas}/${presenciais.length}`}
           </span>
         )}
       </div>
+
+      {horarios.length > 0 && (
+        <div className="-mt-0.5 truncate text-[10px] tabular-nums text-ink-500">
+          {horarios.slice(0, 2).join(" · ")}
+          {horarios.length > 2 && ` +${horarios.length - 2}`}
+        </div>
+      )}
 
       <div className="flex flex-wrap gap-1">
         {day.scheduled.slice(0, 6).map((s) => {
@@ -273,46 +297,45 @@ function DayPanel({ day, month }: { day: AgendaDay; month: string }) {
             const presente = day.presentIds.includes(s.studentId);
             const faltou = day.absentIds.includes(s.studentId);
             const treinou = day.trainedIds.includes(s.studentId);
+            const pendente = day.pendingIds.includes(s.studentId);
+            const aula = classLabel(day.counts[s.studentId]);
 
             return (
               <li
                 key={s.studentId}
-                className="flex flex-wrap items-center gap-3 rounded-xl border border-ink-800 bg-ink-850 p-3"
+                className={cx(
+                  "flex flex-wrap items-center gap-3 rounded-xl border bg-ink-850 p-3",
+                  pendente ? "border-warn/50" : "border-ink-800",
+                )}
               >
                 <Avatar name={s.name} color={s.color} size={32} />
-                <Link
-                  href={`/app/alunos/${s.studentId}`}
-                  className="min-w-0 flex-1 truncate text-sm font-semibold hover:text-lime-accent"
-                >
-                  {s.name}
-                </Link>
-                <Badge tone="neutral">{MODALITY_LABEL[s.modality]}</Badge>
+                <div className="min-w-0 flex-1">
+                  <Link
+                    href={`/app/alunos/${s.studentId}`}
+                    className="block truncate text-sm font-semibold hover:text-lime-accent"
+                  >
+                    {s.name}
+                  </Link>
+                  <p className="text-[11px] text-ink-500">
+                    {MODALITY_LABEL[s.modality]}
+                    {s.startTime && ` · ${formatTime(s.startTime)}`}
+                  </p>
+                </div>
+
+                {aula && <Badge tone="accent">{aula}</Badge>}
 
                 {s.ocupaHorario ? (
                   <>
                     {presente ? (
-                      <Badge tone="ok">presente</Badge>
+                      <Badge tone="ok">aula realizada</Badge>
                     ) : faltou ? (
-                      <Badge tone="danger">faltou</Badge>
+                      <Badge tone="danger">sem aula</Badge>
+                    ) : pendente ? (
+                      <Badge tone="warn">aguardando resposta</Badge>
                     ) : (
                       <Badge tone="neutral">sem registro</Badge>
                     )}
-                    <form action={markAttendanceAction} className="flex gap-2">
-                      <input type="hidden" name="studentId" value={s.studentId} />
-                      <input type="hidden" name="date" value={day.date} />
-                      <input type="hidden" name="present" value="1" />
-                      <Button type="submit" size="sm" variant={presente ? "outline" : "ghost"}>
-                        Presente
-                      </Button>
-                    </form>
-                    <form action={markAttendanceAction}>
-                      <input type="hidden" name="studentId" value={s.studentId} />
-                      <input type="hidden" name="date" value={day.date} />
-                      <input type="hidden" name="present" value="0" />
-                      <Button type="submit" size="sm" variant="outline">
-                        Faltou
-                      </Button>
-                    </form>
+                    <ClassAnswer studentId={s.studentId} date={day.date} />
                   </>
                 ) : (
                   <Badge tone={treinou ? "ok" : "neutral"}>
@@ -324,6 +347,89 @@ function DayPanel({ day, month }: { day: AgendaDay; month: string }) {
           })}
         </ul>
       )}
+    </Card>
+  );
+}
+
+/* --------------------------------------------- confirmação da aula realizada */
+
+/* A pergunta é uma só — "houve a aula?" — mas o "não" precisa do motivo antes
+   de virar registro: é o motivo que decide se a aula sai do pacote. Por isso o
+   "não" leva a lista junto, em vez de um segundo passo em outra tela. */
+function ClassAnswer({ studentId, date }: { studentId: string; date: string }) {
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <form action={markAttendanceAction}>
+        <input type="hidden" name="studentId" value={studentId} />
+        <input type="hidden" name="date" value={date} />
+        <input type="hidden" name="present" value="1" />
+        <Button type="submit" size="sm">
+          Houve
+        </Button>
+      </form>
+      <form action={markAttendanceAction} className="flex items-center gap-1.5">
+        <input type="hidden" name="studentId" value={studentId} />
+        <input type="hidden" name="date" value={date} />
+        <input type="hidden" name="present" value="0" />
+        <Select
+          name="reason"
+          defaultValue="falta_aluno"
+          aria-label="Motivo de não ter havido aula"
+          className="h-auto px-2.5 py-1.5 text-xs"
+        >
+          <option value="falta_aluno">Falta do aluno</option>
+          <option value="cancelada">Cancelada</option>
+          <option value="remarcada">Remarcada</option>
+        </Select>
+        <Button type="submit" size="sm" variant="outline">
+          Não houve
+        </Button>
+      </form>
+    </div>
+  );
+}
+
+/* Aulas que já terminaram e seguem sem resposta. Fica no topo da agenda, e não
+   só no sininho, porque a notificação some quando o personal a marca como lida
+   — a aula sem resposta não pode sumir junto. */
+function PendingCard({ pendentes }: { pendentes: PendingClass[] }) {
+  return (
+    <Card className="border-warn/40">
+      <SectionTitle
+        action={
+          <span className="text-xs text-ink-500">
+            {pendentes.length} {pendentes.length === 1 ? "aula" : "aulas"}
+          </span>
+        }
+      >
+        Houve a aula?
+      </SectionTitle>
+      <ul className="space-y-2">
+        {pendentes.map((p) => (
+          <li
+            key={`${p.studentId}|${p.date}`}
+            className="flex flex-wrap items-center gap-3 rounded-xl border border-ink-800 bg-ink-850 p-3"
+          >
+            <Avatar name={p.studentName} color={p.studentColor} size={32} />
+            <div className="min-w-0 flex-1">
+              <Link
+                href={`/app/alunos/${p.studentId}`}
+                className="block truncate text-sm font-semibold hover:text-lime-accent"
+              >
+                {p.studentName}
+              </Link>
+              <p className="text-[11px] text-ink-500">
+                {formatShortDate(p.date)} · {formatTime(p.startTime)}
+              </p>
+            </div>
+            <ClassAnswer studentId={p.studentId} date={p.date} />
+          </li>
+        ))}
+      </ul>
+      <p className="mt-3 text-xs text-ink-500">
+        Confirmar a aula é o que faz ela contar no pacote do aluno — e o que aparece no
+        calendário dele como “aula 4/12”.
+      </p>
     </Card>
   );
 }

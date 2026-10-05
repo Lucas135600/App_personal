@@ -1,7 +1,7 @@
 import { sql, sqlOne } from "./sql";
 import type {
   Anamnesis, Assessment, Attendance, Challenge, ChallengeEntry, ChallengeMember,
-  Checkin, Consent, Database, Exercise, HabitLog,
+  Checkin, ClassSchedule, Consent, Database, Exercise, HabitLog,
   HabitStatus, HabitTarget,
   Notification, ProgressPhoto, Student, SubscriptionPlan, TrainingPlan, User, Workout,
   WorkoutExercise, WorkoutSession, WorkoutSet,
@@ -94,7 +94,7 @@ const toStudent = (r: R): Student => ({
   modality: s(r.modality) as Student["modality"], goal: s(r.goal),
   status: s(r.status) as Student["status"], startDate: date(r.start_date),
   trainingDays: intArray(r.training_days), notes: s(r.notes),
-  publicProfile: b(r.public_profile),
+  publicProfile: b(r.public_profile), monthlyClasses: num(r.monthly_classes),
 });
 
 const toExercise = (r: R): Exercise => ({
@@ -211,6 +211,13 @@ const toChallengeEntry = (r: R): ChallengeEntry => ({
 const toAttendance = (r: R): Attendance => ({
   id: s(r.id), studentId: s(r.student_id), professionalId: s(r.professional_id),
   date: date(r.date), present: b(r.present), notes: s(r.notes),
+  reason: s(r.reason) as Attendance["reason"], consumes: b(r.consumes),
+  startTime: s(r.start_time), confirmedAt: r.confirmed_at ? stamp(r.confirmed_at) : null,
+});
+
+const toClassSchedule = (r: R): ClassSchedule => ({
+  id: s(r.id), studentId: s(r.student_id), professionalId: s(r.professional_id),
+  weekday: num(r.weekday), startTime: s(r.start_time), durationMin: num(r.duration_min),
 });
 
 const toAnamnesis = (r: R): Anamnesis => ({
@@ -240,6 +247,12 @@ export async function findStudentByUserId(userId: string): Promise<Student | nul
   return r ? toStudent(r) : null;
 }
 
+/** Todos os personais cadastrados. Usado pelo cron, que roda sem sessão. */
+export async function listProfessionals(): Promise<User[]> {
+  const rows = await sql("SELECT * FROM users WHERE role = 'personal'");
+  return rows.map(toUser);
+}
+
 export async function findStudentById(id: string): Promise<Student | null> {
   const r = await sqlOne("SELECT * FROM students WHERE id = $1", [id]);
   return r ? toStudent(r) : null;
@@ -264,7 +277,7 @@ export async function loadProfessionalData(professionalId: string): Promise<Data
     users, students, exercises, plans, workouts, workoutExercises,
     sessions, sets, checkins, assessments, photos, habits, habitTargets,
     consents, challenges, challengeMembers, challengeEntries,
-    attendance, anamnesis, notifications,
+    attendance, classSchedule, anamnesis, notifications,
   ] = await Promise.all([
     sql("SELECT * FROM users WHERE id = $1 OR professional_id = $1", P),
     sql("SELECT * FROM students WHERE professional_id = $1", P),
@@ -306,6 +319,7 @@ export async function loadProfessionalData(professionalId: string): Promise<Data
            JOIN challenges ch ON ch.id = ce.challenge_id
           WHERE ch.professional_id = $1`, P),
     sql("SELECT * FROM attendance WHERE professional_id = $1", P),
+    sql("SELECT * FROM class_schedule WHERE professional_id = $1", P),
     sql("SELECT * FROM anamnesis WHERE professional_id = $1", P),
     sql(`SELECT nt.* FROM notifications nt
            JOIN users u ON u.id = nt.user_id
@@ -333,6 +347,7 @@ export async function loadProfessionalData(professionalId: string): Promise<Data
     challengeEntries: challengeEntries.map(toChallengeEntry),
     subscriptionPlans: [], // vivem fora do escopo por profissional; use listSubscriptionPlans()
     attendance: attendance.map(toAttendance),
+    classSchedule: classSchedule.map(toClassSchedule),
     anamnesis: anamnesis.map(toAnamnesis),
     notifications: notifications.map(toNotification),
   };
