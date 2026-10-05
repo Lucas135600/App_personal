@@ -333,9 +333,15 @@ npm run criar:personal
 node -e "console.log(require('crypto').randomBytes(24).toString('hex'))"
 ```
 
-   O `vercel.json` já agenda `/api/cron/aulas` de hora em hora, e a Vercel manda a chave em
+   O `vercel.json` já agenda `/api/cron/aulas`, e a Vercel manda a chave em
    `Authorization: Bearer`. **Sem a variável a rota responde 503 e não roda** — preferimos recusar
    a deixar um endereço público disparando escrita.
+
+   O horário é `0 2 * * *`: **uma vez por dia, e em UTC** — 2h UTC são 23h em Brasília, depois da
+   última aula do dia. Uma vez por dia não é preferência, é o limite do plano Hobby da Vercel:
+   expressão mais frequente que isso **faz o deploy falhar**, não roda mal. No plano Pro dá para
+   usar `0 * * * *` e a pergunta chega logo depois de cada aula. A precisão no Hobby também é de
+   ±59 min, então o disparo cai entre 23h e 23h59.
 
    O painel do personal faz a mesma varredura toda vez que ele abre o app, então o cron é a rede
    de segurança para o dia em que ele não abre — não a única via.
