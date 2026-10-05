@@ -8,7 +8,7 @@ import * as repo from "@/lib/repo-write";
 import { findUserById } from "@/lib/repo";
 import { addDays, todayISO } from "@/lib/dates";
 import { faltandoObrigatorios, rotuloCurto } from "@/lib/anamnesis";
-import { consumesPackage, formatTime, scheduledTime } from "@/lib/classes";
+import { consumesPackage, scheduledTime } from "@/lib/classes";
 import { getDb } from "@/lib/scope";
 import type { AbsenceReason, Modality, StudentStatus } from "@/lib/types";
 
@@ -112,23 +112,60 @@ export async function resetStudentPasswordAction(
   };
 }
 
+/* Grava a ficha e a grade de aulas numa tacada.
+ *
+ * Eram duas gravações, e a ordem entre elas importava: o horário sempre
+ * descrevia os dias ANTERIORES, porque os campos de hora vinham da grade já
+ * salva. Junto, o horário nasce do mesmo envio que define os dias, e não há
+ * meio-estado possível — nem uma grade sem horário, nem um horário num dia
+ * que o personal acabou de tirar. */
 export async function updateStudentAction(formData: FormData) {
   const pro = await requirePersonal();
   const studentId = str(formData.get("studentId"));
   await assertOwnStudent(pro.id, studentId);
 
+  const modality = str(formData.get("modality")) as Modality;
+  const trainingDays = weekdaysFrom(formData);
+
   await repo.updateStudent(studentId, str(formData.get("name")), {
-    modality: str(formData.get("modality")) as Modality,
+    modality,
     goal: str(formData.get("goal")),
     phone: str(formData.get("phone")),
     birthDate: str(formData.get("birthDate")),
     status: (str(formData.get("status")) as StudentStatus) || "ativo",
     notes: str(formData.get("notes")),
-    trainingDays: weekdaysFrom(formData),
+    trainingDays,
   });
+
+  /* Aluno online não ocupa horário do personal, então a grade de aulas e o
+     pacote são apagados ao mudar a modalidade para online. Mantê-los
+     guardaria uma cobrança de confirmação para aula que não existe mais. */
+  const duracao = Math.min(300, Math.max(15, Number(str(formData.get("durationMin"))) || 60));
+  const pacote =
+    modality === "online"
+      ? 0
+      : Math.min(99, Math.max(0, Number(str(formData.get("monthlyClasses"))) || 0));
+
+  const horarios =
+    modality === "online"
+      ? []
+      : trainingDays
+          .map((weekday) => ({
+            weekday,
+            startTime: str(formData.get(`time_${weekday}`)),
+            durationMin: duracao,
+          }))
+          // Dia sem hora preenchida continua na grade: ele aparece na agenda,
+          // só não gera a pergunta, porque não há horário para terminar.
+          .filter((h) => /^([01]\d|2[0-3]):[0-5]\d$/.test(h.startTime));
+
+  await repo.saveClassSchedule(studentId, pro.id, horarios, pacote);
 
   revalidatePath(`/app/alunos/${studentId}`);
   revalidatePath("/app/alunos");
+  revalidatePath("/app/agenda");
+  revalidatePath("/aluno");
+  revalidatePath("/aluno/agenda");
 }
 
 /* ------------------------------------------------------------- exercícios */
@@ -306,38 +343,6 @@ export async function markAttendanceAction(formData: FormData) {
   revalidatePath(`/app/alunos/${studentId}`);
   revalidatePath("/app/agenda");
   revalidatePath("/app");
-  revalidatePath("/aluno");
-  revalidatePath("/aluno/agenda");
-}
-
-/* ------------------------------------------- horário das aulas e pacote mensal */
-
-/** Grava a grade de horários do aluno e o tamanho do pacote.
- *
- * Só aceita horário para dia que está na grade de treino: horário num dia que
- * o aluno não treina geraria uma cobrança de confirmação que nunca deveria
- * existir. Dia marcado sem hora continua valendo — aparece na agenda, só não
- * dispara a pergunta automática. */
-export async function saveClassScheduleAction(formData: FormData) {
-  const pro = await requirePersonal();
-  const studentId = str(formData.get("studentId"));
-  const student = await assertOwnStudent(pro.id, studentId);
-
-  const duracao = Math.min(300, Math.max(15, Number(str(formData.get("durationMin"))) || 60));
-  const pacote = Math.min(99, Math.max(0, Number(str(formData.get("monthlyClasses"))) || 0));
-
-  const horarios = student.trainingDays
-    .map((weekday) => ({
-      weekday,
-      startTime: str(formData.get(`time_${weekday}`)),
-      durationMin: duracao,
-    }))
-    .filter((h) => /^([01]\d|2[0-3]):[0-5]\d$/.test(h.startTime));
-
-  await repo.saveClassSchedule(studentId, pro.id, horarios, pacote);
-
-  revalidatePath(`/app/alunos/${studentId}`);
-  revalidatePath("/app/agenda");
   revalidatePath("/aluno");
   revalidatePath("/aluno/agenda");
 }

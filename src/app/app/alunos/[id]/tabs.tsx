@@ -11,6 +11,7 @@ import {
   Select, Stat, Textarea, toneForScore,
 } from "@/components/ui";
 import { WeekdayPicker } from "@/components/weekday-picker";
+import { TrainingSchedule } from "./training-schedule";
 import { AttendanceGrid, AttendanceLegend } from "@/components/attendance-calendar";
 import { PhotoCompare } from "@/components/photo-compare";
 import { estadoConsentimento } from "@/lib/consent";
@@ -24,11 +25,9 @@ import {
 import {
   addWorkoutExerciseAction, createAssessmentAction, createWorkoutAction,
   deleteWorkoutAction, removeWorkoutExerciseAction, replyCheckinAction,
-  saveAnamnesisAction, saveClassScheduleAction, updateStudentAction,
-  updateWorkoutExerciseAction,
+  saveAnamnesisAction, updateStudentAction, updateWorkoutExerciseAction,
 } from "@/lib/actions/personal";
 import { ocupaHorario } from "@/lib/classes";
-import type { ClassSchedule } from "@/lib/types";
 
 import { capitalizeFirst, SCALE_LABEL } from "@/lib/labels";
 
@@ -44,8 +43,11 @@ export async function OverviewTab({ view }: { view: StudentView }) {
     done: p.done,
     planned: p.planned,
   }));
-  const weight = await weightSeries(view.student.id);
   const a = view.lastAssessment;
+
+  const grade = db.classSchedule.filter((c) => c.studentId === view.student.id);
+  const horarios = Object.fromEntries(grade.map((c) => [c.weekday, c.startTime]));
+  const duracaoAula = grade[0]?.durationMin ?? 60;
 
   return (
     <div className="grid gap-6 lg:grid-cols-[1.5fr_1fr]">
@@ -84,9 +86,6 @@ export async function OverviewTab({ view }: { view: StudentView }) {
           <TargetBars data={freq} label="Treinos por semana (8 semanas)" />
         </Card>
 
-        <Card>
-          <LineChart points={weight} unit=" kg" label="Peso" invertGood={view.student.goal === "Emagrecimento"} />
-        </Card>
       </div>
 
       <div className="space-y-6">
@@ -145,93 +144,21 @@ export async function OverviewTab({ view }: { view: StudentView }) {
             <Field label="Objetivo">
               <Input name="goal" defaultValue={view.student.goal} />
             </Field>
-            <Field label="Dias de treino">
-              <WeekdayPicker defaultValue={view.student.trainingDays} />
-            </Field>
+            <TrainingSchedule
+              defaultDays={view.student.trainingDays}
+              defaultTimes={horarios}
+              defaultDuration={duracaoAula}
+              defaultPackage={view.student.monthlyClasses}
+              comHorario={ocupaHorario(view.student)}
+            />
             <Field label="Observações do personal">
               <Textarea name="notes" defaultValue={view.student.notes} />
             </Field>
             <Button type="submit" variant="ghost" size="sm">Salvar alterações</Button>
           </form>
         </Card>
-
-        {ocupaHorario(view.student) && (
-          <ClassScheduleCard
-            view={view}
-            schedule={db.classSchedule.filter((c) => c.studentId === view.student.id)}
-          />
-        )}
       </div>
     </div>
-  );
-}
-
-/* Horário da aula e tamanho do pacote.
-   O horário é por dia da semana porque é assim que a semana do personal é
-   montada: o mesmo aluno pode ter terça às 18h e quinta às 7h. Só aparecem os
-   dias que já estão na grade de treino — horário em dia que o aluno não treina
-   geraria cobrança de confirmação para uma aula que não existe. */
-function ClassScheduleCard({
-  view,
-  schedule,
-}: {
-  view: StudentView;
-  schedule: ClassSchedule[];
-}) {
-  const porDia = new Map(schedule.map((c) => [c.weekday, c]));
-  const duracao = schedule[0]?.durationMin ?? 60;
-  const dias = [...view.student.trainingDays].sort(
-    (a, b) => (a === 0 ? 7 : a) - (b === 0 ? 7 : b),
-  );
-
-  return (
-    <Card>
-      <SectionTitle>Aulas presenciais</SectionTitle>
-
-      {dias.length === 0 ? (
-        <EmptyState
-          title="Nenhum dia de treino na grade"
-          description="Marque os dias em “Dados do aluno” para poder definir os horários."
-        />
-      ) : (
-        <form action={saveClassScheduleAction} className="space-y-3">
-          <input type="hidden" name="studentId" value={view.student.id} />
-
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Aulas no pacote" hint="0 = sem pacote">
-              <Input
-                name="monthlyClasses"
-                type="number"
-                min={0}
-                max={99}
-                defaultValue={view.student.monthlyClasses}
-              />
-            </Field>
-            <Field label="Duração (min)">
-              <Input name="durationMin" type="number" min={15} max={300} step={5} defaultValue={duracao} />
-            </Field>
-          </div>
-
-          <div className="grid gap-3 sm:grid-cols-2">
-            {dias.map((d) => (
-              <Field key={d} label={`${WEEKDAY_LABELS[d]} — horário`}>
-                <Input name={`time_${d}`} type="time" defaultValue={porDia.get(d)?.startTime ?? ""} />
-              </Field>
-            ))}
-          </div>
-
-          <Button type="submit" variant="ghost" size="sm">Salvar horários</Button>
-
-          <p className="text-xs text-ink-500">
-            Depois que o horário da aula termina, você recebe a pergunta “houve a aula?”. Ao
-            confirmar, ela entra como aula {view.student.monthlyClasses
-              ? `N/${view.student.monthlyClasses}`
-              : "do pacote"}{" "}
-            na sua agenda e na do aluno. Dia sem horário continua na grade, só não gera a pergunta.
-          </p>
-        </form>
-      )}
-    </Card>
   );
 }
 
